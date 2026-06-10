@@ -19,20 +19,20 @@ RUN a2enmod cgi cgid
 # Configure Apache for LeoBBS
 RUN echo '<VirtualHost *:80>\n\
     ServerAdmin webmaster@localhost\n\
-    DocumentRoot /var/www/html/non-cgi\n\
+    DocumentRoot /var/www/html\n\
 \n\
     ScriptAlias /cgi-bin/ /var/www/html/cgi-bin/\n\
+\n\
+    <Directory /var/www/html>\n\
+        AllowOverride None\n\
+        Options Indexes FollowSymLinks\n\
+        Require all granted\n\
+    </Directory>\n\
 \n\
     <Directory /var/www/html/cgi-bin>\n\
         AllowOverride None\n\
         Options +ExecCGI -MultiViews +SymLinksIfOwnerMatch\n\
         AddHandler cgi-script .cgi .pl\n\
-        Require all granted\n\
-    </Directory>\n\
-\n\
-    <Directory /var/www/html/non-cgi>\n\
-        AllowOverride None\n\
-        Options Indexes FollowSymLinks\n\
         Require all granted\n\
     </Directory>\n\
 \n\
