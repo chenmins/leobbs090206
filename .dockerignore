@@ -3,4 +3,10 @@
 *.htm
 *.txt
 conv
-addon
+addon/Net
+addon/CGI
+addon/*.cgi
+addon/*.pm
+addon/*.zip
+addon/*.rar
+addon/*.wml

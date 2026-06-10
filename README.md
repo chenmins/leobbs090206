@@ -92,6 +92,14 @@ docker run -d \
 
 ## 故障排除
 
+### URL 伪静态
+
+Docker 镜像已内置 mod_rewrite 和 `.htaccess` 支持，伪静态 URL 开箱即用。例如：
+
+- `topic-1-2-3-4-5.htm` → `topic.cgi?forum=1&topic=2&start=3&show=4&replynum=5`
+- `leobbs.htm` → `leobbs.cgi`
+- `profile-username.htm` → `profile.cgi?action=show&member=username`
+
 ### 查看 Apache 错误日志
 
 ```bash

@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
     libnet-perl \
     && rm -rf /var/lib/apt/lists/*
 
-# Enable Apache CGI module
-RUN a2enmod cgi cgid
+# Enable Apache CGI and rewrite modules
+RUN a2enmod cgi cgid rewrite
 
 # Configure Apache for LeoBBS
 RUN echo '<VirtualHost *:80>\n\
@@ -30,7 +30,7 @@ RUN echo '<VirtualHost *:80>\n\
     </Directory>\n\
 \n\
     <Directory /var/www/html/cgi-bin>\n\
-        AllowOverride None\n\
+        AllowOverride All\n\
         Options +ExecCGI -MultiViews +SymLinksIfOwnerMatch\n\
         AddHandler cgi-script .cgi .pl\n\
         Require all granted\n\
@@ -43,6 +43,9 @@ RUN echo '<VirtualHost *:80>\n\
 # Copy forum files
 COPY cgi-bin /var/www/html/cgi-bin
 COPY non-cgi /var/www/html/non-cgi
+
+# Copy .htaccess for URL rewriting (伪静态)
+COPY addon/.htaccess /var/www/html/cgi-bin/.htaccess
 
 # Set permissions for CGI scripts and data directories
 RUN chmod -R 755 /var/www/html/cgi-bin/ && \
