@@ -8,11 +8,10 @@ $coolmeta
 $coolclick
 <!--end Java-->
 
-<!--css info(editable)-->
+<!--css info(editable)1-->
 <style>
 A:visited{TEXT-DECORATION: none}
-A:active{TEXT-DECORATION: none}
-A:hover{TEXT-DECORATION: underline overline}
+A:active{TEXT-DECORATION: none} 
 A:link{text-decoration: none;}
 .t{LINE-HEIGHT: 1.4}
 BODY{FONT-FAMILY: ËÎÌו; FONT-SIZE: 9pt;}
