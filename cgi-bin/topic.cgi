@@ -444,33 +444,25 @@ $output .= qq~function O9(id) {if(id != "") window.open("profile.cgi?action=show
 }
 $output .= qq~
 function loadThreadFollow(f_id,t_id,r_id,ftype,fname){
-if (r_id != "") {
-    var targetImg =eval("document.images.followImg" + r_id);
-}
-else {
-    var targetImg =eval("document.images.followImg" + fname);
-}
-if (r_id != "") {
-var targetDiv =eval("follow" + r_id);
-}
-else {
-var targetDiv =eval("follow" + fname);
-}
-if (targetImg.nofollow <= 0){return false;}
-if (typeof(targetImg) == "object"){
+var detailId = (r_id != "") ? r_id : fname;
+var targetImg = document.getElementById("followImg" + detailId);
+var targetDiv = document.getElementById("follow" + detailId);
+var hiddenFrame = document.getElementById("hiddenframe");
+if (!targetImg || !targetDiv || !hiddenFrame || !hiddenFrame.contentWindow){return false;}
+if (targetImg.getAttribute("nofollow") == "cat.gif"){return false;}
 if (targetDiv.style.display!='block'){
 targetDiv.style.display="block"; targetImg.src="$imagesurl/images/cat1.gif";
 if (typeof fname=="undefined") {fname = "";}
 if (typeof r_id=="undefined") {r_id = "";}
-if (targetImg.loaded=="no"){ document.frames["hiddenframe"].location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
+if (targetImg.getAttribute("loaded")=="no"){ hiddenFrame.contentWindow.location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
 }else{ targetDiv.style.display="none"; targetImg.src="$imagesurl/images/cat.gif"; }
-}}
+}
 </script>
 <style>
 .ts {BORDER-RIGHT:black 1px solid;PADDING-RIGHT:2px;BORDER-TOP:black 1px solid;PADDING-LEFT:2px;PADDING-BOTTOM:2px;MARGIN-LEFT:18px;BORDER-LEFT:black 1px solid;WIDTH:250px;COLOR:black;PADDING-TOP:2px;BORDER-BOTTOM:black 1px solid;BACKGROUND-COLOR:lightyellow;cursor:hand;}
 .ts1 {BORDER-RIGHT:$tablebordercolor 1px solid;PADDING-RIGHT:2px;BORDER-TOP:$tablebordercolor 1px solid;PADDING-LEFT:2px;PADDING-BOTTOM:2px;MARGIN-LEFT:18px;BORDER-LEFT:$tablebordercolor 1px solid;COLOR:black;PADDING-TOP:2px;BORDER-BOTTOM:$tablebordercolor 1px solid;BACKGROUND-COLOR:lightyellow;cursor:hand;}
 </style>
-<iframe width=0 height=0 src="" id=hiddenframe></iframe>
+<iframe width=0 height=0 src="" id=hiddenframe name=hiddenframe></iframe>
 ~;
 if ($privateforum ne "yes") {
     $output .= qq~<SCRIPT>valigntop()</SCRIPT>

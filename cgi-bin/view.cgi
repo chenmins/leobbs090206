@@ -557,27 +557,21 @@ imagesArr[i].setAttribute("alt", tempImgAttrib);
 }}}}}
 var NoImagesURL = "$imagesurl/images/imageno.gif";
 function loadThreadFollow(f_id,t_id,r_id,ftype,fname){
-if (r_id != "") {
-    var targetImg =eval("document.images.followImg" + r_id);
-}
-else {
-    var targetImg =eval("document.images.followImg" + fname);
-}
-if (r_id != "") {
-var targetDiv =eval("follow" + r_id);
-}
-else {
-var targetDiv =eval("follow" + fname);
-}
-if (targetImg.nofollow <= 0){return false;}
-if (typeof(targetImg) == "object"){
+var detailId = (r_id != "") ? r_id : fname;
+var targetImg = document.getElementById("followImg" + detailId);
+var targetDiv = document.getElementById("follow" + detailId);
+var hiddenFrame = document.getElementById("hiddenframe");
+if (!targetImg || !targetDiv || !hiddenFrame || !hiddenFrame.contentWindow){return false;}
+if (targetImg.getAttribute("nofollow") == "cat.gif"){return false;}
 if (targetDiv.style.display!='block'){
 targetDiv.style.display="block"; targetImg.src="$imagesurl/images/cat1.gif";
-if (targetImg.loaded=="no"){ document.frames["hiddenframe"].location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
+if (typeof fname=="undefined") {fname = "";}
+if (typeof r_id=="undefined") {r_id = "";}
+if (targetImg.getAttribute("loaded")=="no"){ hiddenFrame.contentWindow.location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
 }else{ targetDiv.style.display="none"; targetImg.src="$imagesurl/images/cat.gif"; }
-}}
+}
 </script>
-<iframe width=0 height=0 src="" id=hiddenframe></iframe>~;
+<iframe width=0 height=0 src="" id=hiddenframe name=hiddenframe></iframe>~;
 
 
 if ($magicface ne 'off') {
