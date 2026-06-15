@@ -547,7 +547,7 @@ function checkImages(){
 if (document.getElementById){
 var imagesArr = new Array();var setDefaultErrImg = NoImagesURL;var setDefaultErrTxt = "链接不存在";imagesArr = document.getElementsByTagName("img");
 for(var i = 0; i < imagesArr.length; i++){
-if(!imagesArr[0].getAttribute("nc") == "1"){
+if(imagesArr[i].getAttribute("nc") != "1"){
 var tempImgAttrib = imagesArr[i].getAttribute("alt");imagesArr[i].setAttribute("alt", "");
 if(imagesArr[i].width == "28" && imagesArr[i].height == "30"){
 imagesArr[i].src = setDefaultErrImg;imagesArr[i].setAttribute("alt", setDefaultErrTxt);
@@ -557,27 +557,53 @@ imagesArr[i].setAttribute("alt", tempImgAttrib);
 }}}}}
 var NoImagesURL = "$imagesurl/images/imageno.gif";
 function loadThreadFollow(f_id,t_id,r_id,ftype,fname){
-if (r_id != "") {
-    var targetImg =eval("document.images.followImg" + r_id);
+var detailId = (typeof r_id!="undefined" && r_id!="") ? r_id : fname;
+var targetImg = document.getElementById("followImg" + detailId);
+var targetDiv = document.getElementById("follow" + detailId);
+var targetTd = document.getElementById("followTd" + detailId);
+if (!targetImg || !targetDiv || !targetTd){return false;}
+if (targetDiv.style.display=='block'){
+targetDiv.style.display="none"; targetImg.src="$imagesurl/images/cat.gif";
+return false;
 }
-else {
-    var targetImg =eval("document.images.followImg" + fname);
-}
-if (r_id != "") {
-var targetDiv =eval("follow" + r_id);
-}
-else {
-var targetDiv =eval("follow" + fname);
-}
-if (targetImg.nofollow <= 0){return false;}
-if (typeof(targetImg) == "object"){
-if (targetDiv.style.display!='block'){
 targetDiv.style.display="block"; targetImg.src="$imagesurl/images/cat1.gif";
-if (targetImg.loaded=="no"){ document.frames["hiddenframe"].location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
-}else{ targetDiv.style.display="none"; targetImg.src="$imagesurl/images/cat.gif"; }
-}}
+if (targetImg.getAttribute("loaded")=="yes"){return false;}
+targetTd.innerHTML = '<DIV class=ts>正在读取此图片的详细信息，请稍候 ...</DIV>';
+if (typeof fname=="undefined") {fname = "";}
+if (typeof r_id=="undefined") {r_id = "";}
+var url = "getphotoinfo.cgi?forum=" + encodeURIComponent(f_id) + "&topic=" + encodeURIComponent(t_id) + "&reply=" + encodeURIComponent(r_id) + "&ftype=" + encodeURIComponent(ftype) + "&fname=" + encodeURIComponent(fname) + "&_ts=" + (new Date().getTime());
+var controller = null;
+var timer = null;
+if (window.AbortController){
+controller = new AbortController();
+timer = setTimeout(function(){ controller.abort(); }, 8000);
+}
+fetch(url, {
+method:"GET",
+credentials:"same-origin",
+cache:"no-store",
+signal: controller ? controller.signal : undefined
+}).then(function(resp){
+if (timer){clearTimeout(timer);}
+if (!resp.ok){throw new Error("HTTP " + resp.status);}
+return resp.text();
+}).then(function(html){
+html = html.replace(/^[\s\S]*<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
+html = html.replace(/<script[\s\S]*?<\/script>/ig, "");
+if (html.replace(/\s/g, "") == ""){
+html = '<DIV class=ts>没有读取到图片详细信息。</DIV>';
+}
+targetTd.innerHTML = html;
+targetImg.setAttribute("loaded","yes");
+}).catch(function(){
+if (timer){clearTimeout(timer);}
+targetTd.innerHTML = '<DIV class=ts>读取失败或超时。<a href="' + url + '" target="_blank">点这里直接打开</a></DIV>';
+targetImg.setAttribute("loaded","no");
+});
+return false;
+}
 </script>
-<iframe width=0 height=0 src="" id=hiddenframe></iframe>~;
+<iframe width=0 height=0 src="" id=hiddenframe name=hiddenframe style="display:none;"></iframe>~;
 
 
 if ($magicface ne 'off') {

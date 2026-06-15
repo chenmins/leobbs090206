@@ -47,6 +47,9 @@ COPY non-cgi /var/www/html/non-cgi
 # Copy .htaccess for URL rewriting (伪静态)
 COPY addon/.htaccess /var/www/html/cgi-bin/.htaccess
 
+# Normalize Windows line endings so Apache can exec Perl CGI scripts.
+RUN find /var/www/html/cgi-bin /var/www/html/non-cgi -type f \( -name "*.cgi" -o -name "*.pl" -o -name "*.pm" -o -name ".htaccess" \) -exec sed -i 's/\r$//' {} +
+
 # Set permissions for CGI scripts and data directories
 RUN chmod -R 755 /var/www/html/cgi-bin/ && \
     find /var/www/html/cgi-bin -name "*.cgi" -exec chmod 755 {} \; && \

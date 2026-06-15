@@ -30,6 +30,17 @@ require "data/styles.cgi";
 require "bbs.lib.pl";
 $|++;
 
+sub html_escape {
+    my $s = shift;
+    return "" unless defined $s;
+    $s =~ s/&/&amp;/g;
+    $s =~ s/</&lt;/g;
+    $s =~ s/>/&gt;/g;
+    $s =~ s/"/&quot;/g;
+    $s =~ s/\'/&#39;/g;
+    return $s;
+}
+
 $query = new LBCGI;
 
 if ($COOKIE_USED eq 2 && $mycookiepath ne "") { $cookiepath = $mycookiepath; } elsif ($COOKIE_USED eq 1) { $cookiepath =""; }
@@ -71,7 +82,17 @@ else {
      $img= "${imagesdir}$usrdir/$inforum/$tmptopic/$inname\.$intype";
      $dispinfo = $inname;
 }
-my $tags = ExifTool::ImageInfo("$img");
+if (!-e $img) {
+	$out = '<DIV class=ts>图片文件不存在或已被删除。</DIV>';
+}
+else {
+my $tags = eval { ExifTool::ImageInfo("$img") };
+
+if ($@ || (defined $tags && ref($tags) ne "HASH")) {
+    $out = '<DIV class=ts>读取图片详细信息失败。</DIV>';
+}
+else {
+    $tags = {} unless defined $tags;
 
 $name{"Make"} ="厂商";
 $name{"Model"} ="型号";
@@ -132,26 +153,39 @@ $name{"Macro"} ="宏指令";
 $name{"Version"} ="相机版本";
 $name{"Comment"} ="标记说明";
 
+$outfontcolor = $postfontcolorone;
+
 foreach ("Make","Model","Artist","DateTimeOriginal","CreateDate","DateTimeDigitized","ModifyDate","FileSize","FileSource","Software","ExifImageWidth","ExifImageLength","ImageWidth","ImageHeight","ImageSize","ExposureTime","ShutterSpeed","ShutterSpeedValue","FNumber","Aperture","ApertureValue","MaxApertureValue","FocalLength","FocalLengthIn35mmFormat","FocalLength35efl","DigitalZoomRatio","FocusMode","ExposureMode","ExposureCompensation","ExposureIndex","ExposureProgram","BrightnessValue","ISO","Sharpness","Contrast","Saturation","LightSource","ColorSpace","Flash","Slowsync","WhiteBalance","MeteringMode","CustomRendered","ComponentsConfiguration","YCbCrPositioning","SceneType","Orientation","Compression","CompressedBitsPerPixel","Quality","XResolution","YResolution","ResolutionUnit","FlashPixVersion","ExifVersion","Macro","Version","Comment") {
-    next if (($tags->{$_} eq "")||(length($tags->{$_}) > 30));
-    $outfontcolor = "$postfontcolorone" if ($outfontcolor eq "$postfontcolortwo");
-    $out .= "<font color=$outfontcolor>&nbsp;&nbsp;&nbsp;&nbsp;$name{$_}";
+    next if ((!defined $tags->{$_})||($tags->{$_} eq "")||(length($tags->{$_}) > 30));
+    my $label = html_escape($name{$_});
+    my $value = html_escape($tags->{$_});
+    $out .= "<font color=$outfontcolor>&nbsp;&nbsp;&nbsp;&nbsp;$label";
     $spaceit="&nbsp;" x (26-length($name{$_}));
-    $out .= "$spaceit$tags->{$_}</font><BR>";
+    $out .= "$spaceit$value</font><BR>";
+    $outfontcolor = "$postfontcolortwo" if ($outfontcolor eq "$postfontcolorone");
+    $outfontcolor = "$postfontcolorone" if ($outfontcolor eq "");
 }
 
 foreach (sort (keys %$tags)) {
     next if (($_ eq "MakerNoteUnknown")||($_ eq "FileName"));
     next if (length($tags->{$_}) > 30);
     next if ($name{$_} ne "");
-    next if (($tags->{$_} eq "")||($tags->{$_} eq " ")||($tags->{$_} eq "  ")||($tags->{$_} eq "  "));
-    $outfontcolor = "$postfontcolorone" if ($outfontcolor eq "$postfontcolortwo");
-    $out .= "<font color=$outfontcolor>&nbsp;&nbsp;&nbsp;&nbsp;$_";
+    next if ((!defined $tags->{$_})||($tags->{$_} eq "")||($tags->{$_} eq " ")||($tags->{$_} eq "  ")||($tags->{$_} eq "  "));
+    my $label = html_escape($_);
+    my $value = html_escape($tags->{$_});
+    $out .= "<font color=$outfontcolor>&nbsp;&nbsp;&nbsp;&nbsp;$label";
     $spaceit="&nbsp;" x (26-length($_));
-    $out .= "$spaceit$tags->{$_}</font><BR>";
+    $out .= "$spaceit$value</font><BR>";
+    $outfontcolor = "$postfontcolortwo" if ($outfontcolor eq "$postfontcolorone");
+    $outfontcolor = "$postfontcolorone" if ($outfontcolor eq "");
+}
+
+if ($out eq "") {
+	$out = '<DIV class=ts>此图片没有可显示的详细信息。</DIV>';
+}
+}
 }
 $out =~ s/\n//g;
-$out =~ s/\'/\\\'/g;
 }
 print header(-charset=>gb2312 , -expires=>"$EXP_MODE" , -cache=>"$CACHE_MODES");
 print <<"HTML";
@@ -161,13 +195,21 @@ print <<"HTML";
 <meta http-equiv="Content-Type" content="text/html; charset=gb2312">
 </head>
 <body>
+$out
 <SCRIPT>
-<!--
-//初始化内容值
-parent.followTd$dispinfo.innerHTML='$out';
-//已读取
-parent.document.images.followImg$dispinfo.loaded='yes';
--->
+(function(){
+    if (window.parent && window.parent != window) {
+        var targetTd = window.parent.document.getElementById('followTd$dispinfo');
+        var targetImg = window.parent.document.getElementById('followImg$dispinfo');
+        if (targetTd) {
+            var bodyHtml = document.body.innerHTML;
+            var scriptPos = bodyHtml.toLowerCase().indexOf('<script');
+            if (scriptPos >= 0) { bodyHtml = bodyHtml.substring(0, scriptPos); }
+            targetTd.innerHTML = bodyHtml;
+        }
+        if (targetImg) { targetImg.setAttribute('loaded','yes'); }
+    }
+})();
 </SCRIPT>
 </body>
 </html>
