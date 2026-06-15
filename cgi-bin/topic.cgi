@@ -454,13 +454,16 @@ targetDiv.style.display="block"; targetImg.src="$imagesurl/images/cat1.gif";
 if (typeof fname=="undefined") {fname = "";}
 if (typeof r_id=="undefined") {r_id = "";}
 if (targetImg.getAttribute("loaded")=="no"){ hiddenFrame.contentWindow.location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
+if (targetImg.getAttribute("loaded")=="no"){ hiddenFrame.contentWindow.location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
 }else{ targetDiv.style.display="none"; targetImg.src="$imagesurl/images/cat.gif"; }
+}
 }
 </script>
 <style>
 .ts {BORDER-RIGHT:black 1px solid;PADDING-RIGHT:2px;BORDER-TOP:black 1px solid;PADDING-LEFT:2px;PADDING-BOTTOM:2px;MARGIN-LEFT:18px;BORDER-LEFT:black 1px solid;WIDTH:250px;COLOR:black;PADDING-TOP:2px;BORDER-BOTTOM:black 1px solid;BACKGROUND-COLOR:lightyellow;cursor:hand;}
 .ts1 {BORDER-RIGHT:$tablebordercolor 1px solid;PADDING-RIGHT:2px;BORDER-TOP:$tablebordercolor 1px solid;PADDING-LEFT:2px;PADDING-BOTTOM:2px;MARGIN-LEFT:18px;BORDER-LEFT:$tablebordercolor 1px solid;COLOR:black;PADDING-TOP:2px;BORDER-BOTTOM:$tablebordercolor 1px solid;BACKGROUND-COLOR:lightyellow;cursor:hand;}
 </style>
+<iframe width=0 height=0 src="" id=hiddenframe name=hiddenframe></iframe>
 <iframe width=0 height=0 src="" id=hiddenframe name=hiddenframe></iframe>
 ~;
 if ($privateforum ne "yes") {
