@@ -44,8 +44,20 @@ RUN echo '<VirtualHost *:80>\n\
 COPY cgi-bin /var/www/html/cgi-bin
 COPY non-cgi /var/www/html/non-cgi
 
+# Keep a seed copy for bind-mounted data directories.
+RUN mkdir -p /opt/leobbs-seed/cgi-bin /opt/leobbs-seed/non-cgi && \
+    cp -a /var/www/html/cgi-bin/data /opt/leobbs-seed/cgi-bin/data && \
+    cp -a /var/www/html/cgi-bin/members /opt/leobbs-seed/cgi-bin/members && \
+    cp -a /var/www/html/cgi-bin/messages /opt/leobbs-seed/cgi-bin/messages && \
+    cp -a /var/www/html/cgi-bin/boarddata /opt/leobbs-seed/cgi-bin/boarddata && \
+    cp -a /var/www/html/non-cgi/usr /opt/leobbs-seed/non-cgi/usr && \
+    cp -a /var/www/html/non-cgi/usravatars /opt/leobbs-seed/non-cgi/usravatars
+
 # Copy .htaccess for URL rewriting (伪静态)
 COPY addon/.htaccess /var/www/html/cgi-bin/.htaccess
+
+# Prepare a startup script that fixes bind-mount permissions on launch.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Normalize Windows line endings so Apache can exec Perl CGI scripts.
 RUN find /var/www/html/cgi-bin /var/www/html/non-cgi -type f \( -name "*.cgi" -o -name "*.pl" -o -name "*.pm" -o -name ".htaccess" \) -exec sed -i 's/\r$//' {} +
@@ -72,6 +84,9 @@ RUN chmod -R 755 /var/www/html/cgi-bin/ && \
     chmod -R 775 /var/www/html/non-cgi/usravatars && \
     chown -R www-data:www-data /var/www/html
 
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 80
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["apachectl", "-D", "FOREGROUND"]

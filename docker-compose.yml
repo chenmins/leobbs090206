@@ -7,16 +7,10 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - leobbs_data:/var/www/html/cgi-bin/data
-      - leobbs_members:/var/www/html/cgi-bin/members
-      - leobbs_messages:/var/www/html/cgi-bin/messages
-      - leobbs_boarddata:/var/www/html/cgi-bin/boarddata
-      - leobbs_usr:/var/www/html/non-cgi/usr
+      - ./persist/data:/var/www/html/cgi-bin/data
+      - ./persist/members:/var/www/html/cgi-bin/members
+      - ./persist/messages:/var/www/html/cgi-bin/messages
+      - ./persist/boarddata:/var/www/html/cgi-bin/boarddata
+      - ./persist/usr:/var/www/html/non-cgi/usr
+      - ./persist/usravatars:/var/www/html/non-cgi/usravatars
     restart: unless-stopped
-
-volumes:
-  leobbs_data:
-  leobbs_members:
-  leobbs_messages:
-  leobbs_boarddata:
-  leobbs_usr:
