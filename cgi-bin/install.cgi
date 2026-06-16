@@ -450,26 +450,25 @@ sub mypath {
 
 # ²âÊÔ URL Â·¾¶
 sub myurl {
-    local $server_port,$fullurl,$scheme,$default_port,$forwarded_https,$request_port;
+    local $server_port,$fullurl,$scheme,$default_port,$request_port;
     $scheme = 'http';
-    $forwarded_https = 0;
     if (($ENV{'HTTPS'} =~ /^(on|1)$/i)
         || ($ENV{'REQUEST_SCHEME'} =~ /^https$/i)
         || ($ENV{'HTTP_X_FORWARDED_PROTO'} =~ /^https$/i)
         || ($ENV{'HTTP_FRONT_END_HTTPS'} =~ /^(on|1)$/i)) {
         $scheme = 'https';
     }
-    if (($ENV{'HTTP_X_FORWARDED_PROTO'} =~ /^https$/i)
-        || ($ENV{'HTTP_FRONT_END_HTTPS'} =~ /^(on|1)$/i)) {
-        $forwarded_https = 1;
-    }
     $default_port = $scheme eq 'https' ? '443' : '80';
-    $request_port = $ENV{'SERVER_PORT'};
-    $request_port = $ENV{'HTTP_X_FORWARDED_PORT'} if ($ENV{'HTTP_X_FORWARDED_PORT'} ne '');
-    if ($ENV{'HTTP_HOST'} ne "") { $fullurl = $ENV{'HTTP_HOST'}; } else { $fullurl = $ENV{'SERVER_NAME'}; }
-    $fullurl =~ s/:80$// if (($scheme eq 'https')&&($forwarded_https)&&($ENV{'HTTP_X_FORWARDED_PORT'} eq ''));
+    if ($ENV{'HTTP_X_FORWARDED_HOST'} ne "") {
+        ($fullurl) = split(/\s*,\s*/, $ENV{'HTTP_X_FORWARDED_HOST'});
+    } elsif ($ENV{'HTTP_HOST'} ne "") {
+        $fullurl = $ENV{'HTTP_HOST'};
+    } else {
+        $fullurl = $ENV{'SERVER_NAME'};
+    }
+    $request_port = $ENV{'HTTP_X_FORWARDED_PORT'};
     $server_port = ":$request_port" if (($request_port ne '')&&($request_port ne $default_port));
-    $fullurl = "$fullurl$server_port" if ($fullurl !~ /\:/);
+    $fullurl = "$fullurl$server_port" if (($server_port ne '')&&($fullurl !~ /\:/));
     $fullurl = "$scheme://$fullurl$ENV{'SCRIPT_NAME'}";
     $myurl   = substr($fullurl,0,rindex($fullurl,"/"));
     return $myurl;
