@@ -44,15 +44,6 @@ RUN echo '<VirtualHost *:80>\n\
 COPY cgi-bin /var/www/html/cgi-bin
 COPY non-cgi /var/www/html/non-cgi
 
-# Keep a seed copy for bind-mounted data directories.
-RUN mkdir -p /opt/leobbs-seed/cgi-bin /opt/leobbs-seed/non-cgi && \
-    cp -a /var/www/html/cgi-bin/data /opt/leobbs-seed/cgi-bin/data && \
-    cp -a /var/www/html/cgi-bin/members /opt/leobbs-seed/cgi-bin/members && \
-    cp -a /var/www/html/cgi-bin/messages /opt/leobbs-seed/cgi-bin/messages && \
-    cp -a /var/www/html/cgi-bin/boarddata /opt/leobbs-seed/cgi-bin/boarddata && \
-    cp -a /var/www/html/non-cgi/usr /opt/leobbs-seed/non-cgi/usr && \
-    cp -a /var/www/html/non-cgi/usravatars /opt/leobbs-seed/non-cgi/usravatars
-
 # Copy .htaccess for URL rewriting (伪静态)
 COPY addon/.htaccess /var/www/html/cgi-bin/.htaccess
 
@@ -83,6 +74,11 @@ RUN chmod -R 755 /var/www/html/cgi-bin/ && \
     chmod -R 775 /var/www/html/non-cgi/usr && \
     chmod -R 775 /var/www/html/non-cgi/usravatars && \
     chown -R www-data:www-data /var/www/html
+
+# Keep a seed copy for bind-mounted directories.
+RUN mkdir -p /opt/leobbs-seed/cgi-bin /opt/leobbs-seed/non-cgi && \
+    cp -a /var/www/html/cgi-bin/. /opt/leobbs-seed/cgi-bin/ && \
+    cp -a /var/www/html/non-cgi/. /opt/leobbs-seed/non-cgi/
 
 RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
 

@@ -7,10 +7,6 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./persist/data:/var/www/html/cgi-bin/data
-      - ./persist/members:/var/www/html/cgi-bin/members
-      - ./persist/messages:/var/www/html/cgi-bin/messages
-      - ./persist/boarddata:/var/www/html/cgi-bin/boarddata
-      - ./persist/usr:/var/www/html/non-cgi/usr
-      - ./persist/usravatars:/var/www/html/non-cgi/usravatars
+      - ./persist/cgi-bin:/var/www/html/cgi-bin
+      - ./persist/non-cgi:/var/www/html/non-cgi
     restart: unless-stopped
