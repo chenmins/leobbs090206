@@ -413,11 +413,7 @@ sub alphabetically { lc($a) cmp lc($b) }
 sub whosonline {
 	my $instruct = shift;
 	(local $tempusername, local $where, local $method, local $where2) = split(/\t/, $instruct);
-	local $ipaddress  = $ENV{'REMOTE_ADDR'};
-	$trueipaddress = $ENV{'HTTP_X_FORWARDED_FOR'};
-	$trueipaddress = $ipaddress if ($trueipaddress eq "" || $trueipaddress =~ m/a-z/i || $trueipaddress =~ m/^192\.168\./ || $trueipaddress =~ m/^10\./);
-	local $trueipaddress1 = $ENV{'HTTP_CLIENT_IP'};
-	$trueipaddress = $trueipaddress1 if ($trueipaddress1 ne "" && $trueipaddress1 !~ m/a-z/i && $trueipaddress1 !~ m/^192\.168\./ && $trueipaddress1 !~ m/^10\./);
+	local ($ipaddress, $trueipaddress) = split(/\=/, &myip());
 	local $ipall      = "$ipaddress=$trueipaddress";
 	local $tempusername1=$tempusername;
 	$tempusername = "客人($ipaddress)" if ($tempusername eq "客人");
