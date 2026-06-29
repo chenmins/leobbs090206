@@ -6,7 +6,11 @@ services:
     container_name: leobbs-forum
     ports:
       - "8080:80"
+    environment:
+      - TZ=Asia/Shanghai
     volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
       - ./persist/cgi-bin:/var/www/html/cgi-bin
       - ./persist/non-cgi:/var/www/html/non-cgi
     restart: unless-stopped
