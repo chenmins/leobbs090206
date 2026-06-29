@@ -10,9 +10,35 @@
 
 $versionnumber = "<b>L<font color=#F26522>eo</font>B<font color=#00AEEF>BS</font></b> X Build090208";
 
-$ENV{"HTTP_CLIENT_IP"} = '' if ($ENV{"HTTP_CLIENT_IP"} !~ /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
-$ENV{"HTTP_X_FORWARDED_FOR"} = '' if ($ENV{"HTTP_X_FORWARDED_FOR"} !~ /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
-$ENV{'REMOTE_ADDR'} = $ENV{'HTTP_X_FORWARDED_FOR'} if (($ENV{'REMOTE_ADDR'} eq "127.0.0.1")&&($ENV{'HTTP_X_FORWARDED_FOR'} ne "")&&($ENV{'HTTP_X_FORWARDED_FOR'} ne "unknow"));
+sub lb_is_public_ip {
+    my $ip = shift || '';
+    return 0 unless $ip =~ /^\d{1,3}(?:\.\d{1,3}){3}$/;
+    my @p = split(/\./, $ip);
+    foreach my $n (@p) { return 0 if $n > 255; }
+    return 0 if $p[0] == 0 || $p[0] == 10 || $p[0] == 127 || $p[0] >= 224;
+    return 0 if $p[0] == 100 && $p[1] >= 64 && $p[1] <= 127;
+    return 0 if $p[0] == 169 && $p[1] == 254;
+    return 0 if $p[0] == 172 && $p[1] >= 16 && $p[1] <= 31;
+    return 0 if $p[0] == 192 && $p[1] == 168;
+    return 1;
+}
+
+sub lb_forwarded_ip {
+    foreach my $header ($ENV{'HTTP_X_REAL_IP'}, $ENV{'HTTP_X_FORWARDED_FOR'}) {
+        next if !defined($header) || $header eq '' || $header =~ /unknown/i;
+        foreach my $candidate (split(/\s*,\s*/, $header)) {
+            $candidate =~ s/^\s+|\s+$//g;
+            return $candidate if &lb_is_public_ip($candidate);
+        }
+    }
+    return '';
+}
+
+my $lb_client_ip = &lb_forwarded_ip();
+$ENV{"HTTP_CLIENT_IP"} = '' if !&lb_is_public_ip($ENV{"HTTP_CLIENT_IP"});
+$ENV{"HTTP_X_FORWARDED_FOR"} = $lb_client_ip;
+$ENV{'REMOTE_ADDR'} = $lb_client_ip if (($lb_client_ip ne '') && !&lb_is_public_ip($ENV{'REMOTE_ADDR'}));
+
 $skin = "leobbs" if ($skin eq "");
 
 ($memdir,$msgdir,$usrdir,$saledir) = split (/\|/, getdir());
