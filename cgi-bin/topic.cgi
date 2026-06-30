@@ -444,33 +444,24 @@ $output .= qq~function O9(id) {if(id != "") window.open("profile.cgi?action=show
 }
 $output .= qq~
 function loadThreadFollow(f_id,t_id,r_id,ftype,fname){
-if (r_id != "") {
-    var targetImg =eval("document.images.followImg" + r_id);
-}
-else {
-    var targetImg =eval("document.images.followImg" + fname);
-}
-if (r_id != "") {
-var targetDiv =eval("follow" + r_id);
-}
-else {
-var targetDiv =eval("follow" + fname);
-}
-if (targetImg.nofollow <= 0){return false;}
-if (typeof(targetImg) == "object"){
+var detailId = (r_id != "") ? r_id : fname;
+var targetImg = document.getElementById("followImg" + detailId);
+var targetDiv = document.getElementById("follow" + detailId);
+var hiddenFrame = document.getElementById("hiddenframe");
+if (!targetImg || !targetDiv || !hiddenFrame || !hiddenFrame.contentWindow){return false;}
 if (targetDiv.style.display!='block'){
 targetDiv.style.display="block"; targetImg.src="$imagesurl/images/cat1.gif";
 if (typeof fname=="undefined") {fname = "";}
 if (typeof r_id=="undefined") {r_id = "";}
-if (targetImg.loaded=="no"){ document.frames["hiddenframe"].location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
+if (targetImg.getAttribute("loaded")=="no"){ hiddenFrame.contentWindow.location.replace("getphotoinfo.cgi?forum="+f_id+"&topic="+t_id+"&reply="+r_id+"&ftype="+ftype+"&fname="+fname); }
 }else{ targetDiv.style.display="none"; targetImg.src="$imagesurl/images/cat.gif"; }
-}}
+}
 </script>
 <style>
 .ts {BORDER-RIGHT:black 1px solid;PADDING-RIGHT:2px;BORDER-TOP:black 1px solid;PADDING-LEFT:2px;PADDING-BOTTOM:2px;MARGIN-LEFT:18px;BORDER-LEFT:black 1px solid;WIDTH:250px;COLOR:black;PADDING-TOP:2px;BORDER-BOTTOM:black 1px solid;BACKGROUND-COLOR:lightyellow;cursor:hand;}
 .ts1 {BORDER-RIGHT:$tablebordercolor 1px solid;PADDING-RIGHT:2px;BORDER-TOP:$tablebordercolor 1px solid;PADDING-LEFT:2px;PADDING-BOTTOM:2px;MARGIN-LEFT:18px;BORDER-LEFT:$tablebordercolor 1px solid;COLOR:black;PADDING-TOP:2px;BORDER-BOTTOM:$tablebordercolor 1px solid;BACKGROUND-COLOR:lightyellow;cursor:hand;}
 </style>
-<iframe width=0 height=0 src="" id=hiddenframe></iframe>
+<iframe width=0 height=0 src="" id=hiddenframe name=hiddenframe></iframe>
 ~;
 if ($privateforum ne "yes") {
     $output .= qq~<SCRIPT>valigntop()</SCRIPT>
@@ -625,7 +616,7 @@ foreach (@threads[$startarray .. $endarray]) {
 	    } else{
 	    	$addme = qq(<img src=$imagesurl/icon/$filetype.gif border=0 width=16> 此主题相关图片如下：<br><a href=attachment.cgi?forum=$inforum&topic=$intopic&postno=$editpostnumber&type=.$up_ext target=_blank><img src=attachment.cgi?forum=$inforum&topic=$intopic&postno=$editpostnumber&type=.$up_ext border=0 alt=按此在新窗口浏览图片 onload="javascript:if(this.width>document.body.clientWidth-333)this.width=document.body.clientWidth-333" onmousewheel="return bbimg(this)"></a><br>);
 	    }
-	    $addme .= qq(<img src=$imagesurl/images/none.gif whidth=0 height=5><BR><span style=CURSOR:hand onclick=loadThreadFollow($forumid,$topicid,$editpostnumber,'$up_ext')><img id=followImg$editpostnumber src=$imagesurl/images/cat.gif width=9 loaded=no nofollow="cat.gif" valign=absmiddle> 按此查看图片详细信息<table cellpadding=0 class=ts1 cellspacing=0 width=50% id=follow$editpostnumber style=DISPLAY:none><tr><td id=followTd$editpostnumber><DIV class=ts onclick=loadThreadFollow($forumid,$topicid,$editpostnumber,'$up_ext')>正在读取此图片的详细信息，请稍候 ...</DIV></td></tr></table></span><BR><BR>);
+	    $addme .= qq(<img src=$imagesurl/images/none.gif whidth=0 height=5><BR><span style=CURSOR:hand onclick=loadThreadFollow($inforum,$topicid,$editpostnumber,'$up_ext')><img id=followImg$editpostnumber src=$imagesurl/images/cat.gif width=9 loaded=no nofollow="cat.gif" valign=absmiddle> 按此查看图片详细信息<table cellpadding=0 class=ts1 cellspacing=0 width=50% id=follow$editpostnumber style=DISPLAY:none><tr><td id=followTd$editpostnumber><DIV class=ts onclick=loadThreadFollow($inforum,$topicid,$editpostnumber,'$up_ext')>正在读取此图片的详细信息，请稍候 ...</DIV></td></tr></table></span><BR><BR>);
 	}
 	elsif ($up_ext eq "swf") {
 	    if ($arrawpostflash eq "on") {

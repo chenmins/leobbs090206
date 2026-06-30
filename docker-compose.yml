@@ -6,17 +6,11 @@ services:
     container_name: leobbs-forum
     ports:
       - "8080:80"
+    environment:
+      - TZ=Asia/Shanghai
     volumes:
-      - leobbs_data:/var/www/html/cgi-bin/data
-      - leobbs_members:/var/www/html/cgi-bin/members
-      - leobbs_messages:/var/www/html/cgi-bin/messages
-      - leobbs_boarddata:/var/www/html/cgi-bin/boarddata
-      - leobbs_usr:/var/www/html/non-cgi/usr
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./persist/cgi-bin:/var/www/html/cgi-bin
+      - ./persist/non-cgi:/var/www/html/non-cgi
     restart: unless-stopped
-
-volumes:
-  leobbs_data:
-  leobbs_members:
-  leobbs_messages:
-  leobbs_boarddata:
-  leobbs_usr:

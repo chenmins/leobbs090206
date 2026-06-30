@@ -287,9 +287,11 @@ print <<"HTML";
 <SCRIPT>
 <!--
 //初始化内容值
-parent.followTd$id_of_this_topid.innerHTML='$output';
+var targetTd = parent.document.getElementById('followTd$id_of_this_topid');
+var targetImg = parent.document.getElementById('followImg$id_of_this_topid');
+if (targetTd) { targetTd.innerHTML='$output'; }
 //已读取
-parent.document.images.followImg$id_of_this_topid.loaded='yes';
+if (targetImg) { targetImg.setAttribute('loaded','yes'); }
 -->
 </SCRIPT>
 </body>

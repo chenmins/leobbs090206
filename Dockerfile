@@ -47,6 +47,12 @@ COPY non-cgi /var/www/html/non-cgi
 # Copy .htaccess for URL rewriting (伪静态)
 COPY addon/.htaccess /var/www/html/cgi-bin/.htaccess
 
+# Prepare a startup script that fixes bind-mount permissions on launch.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# Normalize Windows line endings so Apache can exec Perl CGI scripts.
+RUN find /var/www/html/cgi-bin /var/www/html/non-cgi -type f \( -name "*.cgi" -o -name "*.pl" -o -name "*.pm" -o -name ".htaccess" \) -exec sed -i 's/\r$//' {} +
+
 # Set permissions for CGI scripts and data directories
 RUN chmod -R 755 /var/www/html/cgi-bin/ && \
     find /var/www/html/cgi-bin -name "*.cgi" -exec chmod 755 {} \; && \
@@ -69,6 +75,14 @@ RUN chmod -R 755 /var/www/html/cgi-bin/ && \
     chmod -R 775 /var/www/html/non-cgi/usravatars && \
     chown -R www-data:www-data /var/www/html
 
+# Keep a seed copy for bind-mounted directories.
+RUN mkdir -p /opt/leobbs-seed/cgi-bin /opt/leobbs-seed/non-cgi && \
+    cp -a /var/www/html/cgi-bin/. /opt/leobbs-seed/cgi-bin/ && \
+    cp -a /var/www/html/non-cgi/. /opt/leobbs-seed/non-cgi/
+
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 80
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["apachectl", "-D", "FOREGROUND"]

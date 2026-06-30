@@ -791,7 +791,8 @@ sub GetTagTable($)
     my $table = $allTables{$tableName};
 
     unless ($table) {
-        unless (defined %$tableName) {
+        no strict 'refs';
+        unless (scalar keys %{$tableName}) {
             # try to load module for this table
             if ($tableName =~ /(.*)::/) {
                 my $module = $1;
@@ -799,20 +800,18 @@ sub GetTagTable($)
                 $lib =~ s/::/\//g;  # change '::' to '/'
                 if (require $lib) {
                     # look for 'Composite' table and add it to our composites
-                    if (defined %{"${module}::Composite"}) {
-                        no strict 'refs';
+                    if (scalar keys %{"${module}::Composite"}) {
                         AddCompositeTags(\%{"${module}::Composite"});
                     }
                 } else {
                     warn "Error loading $lib\n";
                 }
             }
-            unless (defined %$tableName) {
+            unless (scalar keys %{$tableName}) {
                 warn "Can't find table $tableName\n";
                 return undef;
             }
         }
-        no strict 'refs';
         $table = \%$tableName;
         # save all descriptions in the new table
         SaveDescriptions($table);

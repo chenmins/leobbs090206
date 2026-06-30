@@ -171,19 +171,24 @@ $output .= qq~<BGSOUND SRC=$imagesurl/midi/$midiaddr LOOP=-1>~ if ((-e "${images
 
 if ($canusetreeview ne "no") {
     $output .= qq~<script>
-function loadThreadFollows(f_id,t_id){ document.frames["hiddenframe"].location.replace("reply_tree.cgi?forum="+f_id+"&topic="+t_id);}
+function loadThreadFollows(f_id,t_id){
+var hiddenFrame = document.getElementById("hiddenframe");
+if (!hiddenFrame || !hiddenFrame.contentWindow) { return false; }
+hiddenFrame.contentWindow.location.replace("reply_tree.cgi?forum="+f_id+"&topic="+t_id);
+}
 function loadThreadFollow(f_id,t_id,id_of_topic){
-var targetImg =eval("document.images.followImg" + id_of_topic);
-var targetDiv =eval("follow" + id_of_topic);
-if (targetImg.nofollow <= 0){return false;}
-if (typeof(targetImg) == "object"){
+var targetImg = document.getElementById("followImg" + id_of_topic);
+var targetDiv = document.getElementById("follow" + id_of_topic);
+var hiddenFrame = document.getElementById("hiddenframe");
+if (!targetImg || !targetDiv || !hiddenFrame || !hiddenFrame.contentWindow){return false;}
+if (Number(targetImg.getAttribute("nofollow")) <= 0){return false;}
 if (targetDiv.style.display!='block'){
 targetDiv.style.display="block";targetImg.src="$imagesurl/images/cat1.gif";
-if (targetImg.loaded=="no"){ document.frames["hiddenframe"].location.replace("reply_tree.cgi?forum="+f_id+"&topic="+t_id); }
+if (targetImg.getAttribute("loaded")=="no"){ hiddenFrame.contentWindow.location.replace("reply_tree.cgi?forum="+f_id+"&topic="+t_id); }
 }else{ targetDiv.style.display="none";targetImg.src="$imagesurl/images/cat.gif"; }
-}}
+}
 </script>
-<iframe width=0 height=0 align=center src="" id=hiddenframe></iframe>
+<iframe width=0 height=0 align=center src="" id=hiddenframe name=hiddenframe></iframe>
 ~;
 }
 
