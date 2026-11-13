@@ -91,11 +91,32 @@ if ($action eq "mobileprofile") {
     require JSON::PP;
     my $profile = {};
     if ($userregistered ne "no" && $membername ne "" && $inpassword ne "") {
-        $profile = {money => 0 + ($mymoney || 0), posts => 0 + ($numberofposts || 0),
-            replies => 0 + ($numberofreplys || 0)};
+        require "${lbdir}data/cityinfo.cgi";
+        require Encode;
+        my ($bank, $deposit, undef, $loan) = split /,/, $ebankdata;
+        my @totals;
+        for my $box ("in/${memberfilename}_msg.cgi", "out/${memberfilename}_out.cgi") {
+            my $count = 0;
+            if (open(my $mail, "<:raw", "${lbdir}${msgdir}/$box")) {
+                flock($mail, 1) if $OS_USED eq "Unix";
+                while (<$mail>) { $count++ if /\S/; }
+                close $mail;
+            }
+            push @totals, $count;
+        }
+        my $cash = $numberofposts * $addmoney + $numberofreplys * $replymoney
+            + $visitno * $loginmoney + $mymoney - $postdel * $delmoney + $jhcount * $addjhhb;
+        $profile = {money => 0 + $cash, currency => Encode::decode("cp936", $moneyname || ""),
+            deposit => ($bank eq "1" || $bank eq "-1") ? 0 + ($deposit || 0) : undef,
+            loan => ($bank eq "1" || $bank eq "-1") ? 0 + ($loan || 0) : 0,
+            inbox => $totals[0], outbox => $totals[1],
+            limit => $membercode =~ /^(?:ad|smo|cmo|amo|mo)$/ ? 0 : 0 + ($maxmsgno || 0),
+            posts => 0 + ($numberofposts || 0), replies => 0 + ($numberofreplys || 0),
+            deleted => 0 + ($postdel || 0), lastVisit => 0 + ($lastgone || 0),
+            address => $ENV{REMOTE_ADDR} || ""};
     }
     print "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\n\r\n";
-    print JSON::PP->new->encode($profile);
+    print JSON::PP->new->utf8->encode($profile);
     exit;
 }
 # Report the member only after the existing cookie validation above.

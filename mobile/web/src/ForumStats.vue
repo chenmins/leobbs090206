@@ -50,7 +50,7 @@ const legend = [
     <h2 class="bar">今日生日</h2>
     <p class="row legend-item"><img :src="skin + 'born.gif'" alt="">今天有 {{ stats.birthdays }} 位会员过生日</p>
   </section>
-  <details class="panel">
+  <details class="panel" open>
     <summary class="bar">LeoBBS 论坛图例</summary>
     <div class="row forum-legend">
       <span v-for="[icon, label] in legend" :key="icon" class="legend-item">

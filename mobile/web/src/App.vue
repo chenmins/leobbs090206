@@ -45,6 +45,14 @@ const pendingAction = ref('')
 const account = ref('')
 const checkingAccount = ref(true)
 const showMailbox = ref(false)
+const initialMailbox = ref('inbox')
+const mailboxKey = ref(0)
+function openMailbox(box) {
+  initialMailbox.value = box
+  mailboxKey.value++
+  showMailbox.value = true
+  window.scrollTo(0, 0)
+}
 const unreadMail = ref(0)
 const profile = ref(null)
 let mailTimer
@@ -292,7 +300,7 @@ onUnmounted(() => {
   </header>
 
   <main>
-    <Mailbox v-if="account && showMailbox" @read="refreshUnreadMail" />
+    <Mailbox v-if="account && showMailbox" :key="mailboxKey" :initial-box="initialMailbox" @read="refreshUnreadMail" />
     <p v-if="notice" class="panel row" role="status">{{ notice }}</p>
     <form v-if="mode" class="panel compose" @submit.prevent="submit">
       <h2 class="bar">{{ {login: '登录', register: '注册', addnew: '发表主题', addreply: '回复'}[mode] }}</h2>
@@ -382,7 +390,26 @@ onUnmounted(() => {
     <template v-else-if="!boardId">
       <details v-if="account" class="panel" @toggle="$event.currentTarget.open && loadProfile()">
         <summary class="bar">个人状态 · {{ account }} · {{ unreadMail }} 封未读</summary>
-        <p v-if="profile" class="row">现金 {{ profile.money }} 雷傲元 · 发帖 {{ profile.posts }} · 回复 {{ profile.replies }}</p>
+        <div v-if="profile" class="row">
+          <small>来自 {{ profile.address || '—' }} · 最后访问 {{ formatDate(profile.lastVisit) || '—' }}</small>
+          <div class="profile-grid">
+            <section><h3>我的财产</h3>
+              <div>现金 <b>{{ profile.money }} {{ profile.currency || '雷傲元' }}</b></div>
+              <div>存款 <b>{{ profile.deposit ?? '没开户' }}</b></div>
+              <div>贷款 <b>{{ profile.loan || '没贷款' }}</b></div>
+            </section>
+            <section><h3>我的短消息</h3>
+              <div><button class="profile-link" @click="openMailbox('inbox')">收件箱</button> <b>{{ profile.inbox }}</b></div>
+              <div><button class="profile-link" @click="openMailbox('outbox')">发件箱</button> <b>{{ profile.outbox }}</b></div>
+              <div>条数限制 <b>{{ profile.limit || '没有限制' }}</b></div>
+            </section>
+            <section><h3>我的文章</h3>
+              <div>发表数 <b>{{ profile.posts }}</b></div>
+              <div>回复数 <b>{{ profile.replies }}</b></div>
+              <div>被删数 <b>{{ profile.deleted }}</b></div>
+            </section>
+          </div>
+        </div>
       </details>
       <section v-for="category in [...new Set(state.boards.map(board => board.category))]" :key="category" class="panel">
         <h1 class="bar">◇ {{ category }}</h1>

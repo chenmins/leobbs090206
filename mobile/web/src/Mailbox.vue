@@ -2,7 +2,8 @@
 import { onMounted, ref, watch } from 'vue'
 
 const emit = defineEmits(['read'])
-const box = ref('inbox')
+const props = defineProps({initialBox: {type: String, default: 'inbox'}})
+const box = ref(props.initialBox)
 const items = ref([])
 const page = ref(1)
 const pages = ref(1)
@@ -147,7 +148,7 @@ async function send() {
   }
 }
 
-onMounted(() => load('inbox'))
+onMounted(() => load(props.initialBox))
 </script>
 
 <template>

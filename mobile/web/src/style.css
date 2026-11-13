@@ -81,3 +81,8 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .forum-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .legend-item{display:flex;align-items:center;gap:6px}
 .legend-item img{flex:none}
+.profile-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.profile-grid section{padding:8px;background:#f1f6ff;border:1px solid #d3e0f4;overflow-wrap:anywhere}
+.profile-grid h3{margin:0 0 4px;font-size:14px}
+.profile-link{border:0;background:none;padding:0;color:var(--link);font:inherit;text-decoration:underline}
+@media(max-width:380px){.profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
