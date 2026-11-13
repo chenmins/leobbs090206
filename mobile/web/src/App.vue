@@ -8,11 +8,10 @@ let request
 
 const boardId = computed(() => route.value[0])
 const topicId = computed(() => route.value[1])
-const page = computed(() => Number(route.value[2] || 1))
-// Hash routes keep deep links usable with Apache serving a static /m/ entry point.
-const boardLink = id => '#/' + id
-const topicLink = (board, topic) => '#/' + board + '/' + topic
-const pageLink = index => '#/' + boardId.value + '/' + (topicId.value || '') + '/' + index
+const page = computed(() => new URLSearchParams(location.search).get('page') || 1)
+const boardLink = id => '/m/' + id
+const topicLink = (board, topic) => boardLink(board) + '/' + topic
+const pageLink = index => (topicId.value ? topicLink(boardId.value, topicId.value) : boardLink(boardId.value)) + '?page=' + index
 const legacy = '/cgi-bin/'
 const img = '/non-cgi/'
 const date = new Intl.DateTimeFormat('zh-CN', {dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Shanghai'})
@@ -24,7 +23,14 @@ async function load() {
   request?.abort()
   const controller = new AbortController()
   request = controller
-  route.value = location.hash.slice(2).split('/')
+  // Convert old bookmarks before reading the current path.
+  const oldRoute = location.hash.match(/^#\/(\d*)(?:\/(\d*))?(?:\/(\d+))?$/)
+  if (oldRoute) {
+    const [, board, topic, index] = oldRoute
+    const path = topic ? topicLink(board, topic) : board ? boardLink(board) : '/m/'
+    history.replaceState(null, '', path + (index ? '?page=' + index : ''))
+  }
+  route.value = location.pathname.slice('/m/'.length).split('/')
   state.value = null
   error.value = ''
   window.scrollTo(0, 0)
@@ -41,11 +47,9 @@ async function load() {
   }
 }
 onMounted(() => {
-  window.addEventListener('hashchange', load)
   load()
 })
 onUnmounted(() => {
-  window.removeEventListener('hashchange', load)
   request?.abort()
 })
 </script>
@@ -53,11 +57,11 @@ onUnmounted(() => {
 <template>
   <header class="shell">
     <div class="masthead">
-      <a href="#/" aria-label="LeoBBS 首页"><img :src="img + 'myimages/mainlogo.gif'" alt="LeoBBS"></a>
+      <a href="/m/" aria-label="LeoBBS 首页"><img :src="img + 'myimages/mainlogo.gif'" alt="LeoBBS"></a>
       <strong>雷傲极酷超级论坛</strong>
     </div>
     <nav aria-label="论坛导航">
-      <a href="#/"><img :src="img + 'images/gohome.gif'" alt="">首页</a>
+      <a href="/m/"><img :src="img + 'images/gohome.gif'" alt="">首页</a>
       <a :href="legacy + 'search.cgi'">搜索</a>
       <a :href="legacy + 'loginout.cgi'">登录</a>
       <a :href="legacy + 'leobbs.htm'">桌面版</a>
@@ -87,7 +91,7 @@ onUnmounted(() => {
       </section>
     </template>
     <template v-else>
-      <div class="crumb"><a href="#/">首页</a> › <a :href="boardLink(boardId)">{{ state.board.name }}</a><template v-if="topicId"> › 帖子详情</template></div>
+      <div class="crumb"><a href="/m/">首页</a> › <a :href="boardLink(boardId)">{{ state.board.name }}</a><template v-if="topicId"> › 帖子详情</template></div>
       <section v-if="!topicId" class="panel">
         <div class="bar heading"><h1>{{ state.board.name }}</h1><a class="button" :href="legacy + 'post.cgi?action=new&forum=' + boardId"><img :src="img + 'images/edit.gif'" alt="">发帖</a></div>
         <p v-if="state.board.description" class="row intro">{{ state.board.description }}</p>

@@ -35,6 +35,7 @@ if listing["items"]:
 get(f'/api/v1/boards/{board["id"]}/topics/999999', 404)
 get("/api/v1/boards/999999", 404)
 get("/api/v1/boards/1?page=-1", 400)
-_, body = get("/m/")
-assert b'id="app"' in body
+for path in ("/m/", f'/m/{board["id"]}', f'/m/{board["id"]}/1?page=2'):
+    _, body = get(path)
+    assert b'id="app"' in body
 print("Mobile HTTP smoke checks passed")
