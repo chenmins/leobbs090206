@@ -113,6 +113,39 @@ sub legacy_form {
     send_json('200 OK', {form => join('&', @pairs)});
 }
 
+sub forum_stats {
+    my %counts;
+    for my $row (rows('data/boardstats.cgi')) {
+        $counts{$1} = $2 if $row =~ /^\$(lastregisteredmember|totalmembers|totalthreads|totalposts) = '([^']*)';/;
+    }
+    my ($postlog) = rows('data/todaypost.cgi');
+    my ($day, $today, undef, $peak, $yesterday) = fields($postlog // '');
+    my @date = localtime;
+    my $current = sprintf '%04d/%02d/%02d', $date[5] + 1900, $date[4] + 1, $date[3];
+    if ($day ne $current) {
+        my @prior = localtime(time - 86400);
+        my $previous = sprintf '%04d/%02d/%02d', $prior[5] + 1900, $prior[4] + 1, $prior[3];
+        ($today, $yesterday) = (0, $day eq $previous ? $today : 0);
+    }
+    my ($counter) = rows('data/counter.cgi');
+    my ($visits, $clicks, $onlinePeak, $onlinePeakAt) = fields($counter // '');
+    my ($membersOnline, $guestsOnline) = (0, 0);
+    for my $row (rows('data/onlinedata.cgi')) {
+        my ($name, undef, $seen, undef, undef, undef, undef, undef, undef, $role) = fields($row);
+        next unless defined $seen && $seen =~ /^\d+$/ && $seen >= time - 900;
+        next if $role eq 'hidden';
+        if ($name =~ /^\xBF\xCD\xC8\xCB/) { $guestsOnline++ }
+        else { $membersOnline++ }
+    }
+    my ($birthday_date, undef, $birthdays) = rows('data/birthdaytoday.cgi');
+    return {lastMember => text($counts{lastregisteredmember}), members => 0 + ($counts{totalmembers} || 0),
+        topics => 0 + ($counts{totalthreads} || 0), replies => 0 + ($counts{totalposts} || 0),
+        today => 0 + ($today || 0), yesterday => 0 + ($yesterday || 0), peak => 0 + ($peak || 0),
+        online => $membersOnline + $guestsOnline, membersOnline => $membersOnline, guestsOnline => $guestsOnline,
+        visits => 0 + ($visits || 0), clicks => 0 + ($clicks || 0),
+        onlinePeak => 0 + ($onlinePeak || 0), onlinePeakAt => 0 + ($onlinePeakAt || 0), birthdays => ($birthday_date // '') =~ /^#\Q$current\E/ ? 0 + ($birthdays || 0) : 0};
+}
+
 sub dispatch {
     if (($ENV{PATH_INFO} // '') eq '/legacy-form' && $query->request_method eq 'POST') {
         send_json('413 Payload Too Large', {error => '表单太长'}) if $query->cgi_error;
@@ -187,7 +220,7 @@ sub dispatch {
             map { +{%$_, boardId => $id} } topics($id)
         } @boards;
         splice @latest, 8 if @latest > 8;
-        send_json('200 OK', {boards => \@boards, latest => \@latest});
+        send_json('200 OK', {boards => \@boards, latest => \@latest, stats => forum_stats()});
     }
     if ($path =~ m{\A/boards/([1-9][0-9]{0,9})(?:/topics/([1-9][0-9]{0,9}))?\z}) {
         my ($id, $topic_id) = ($1, $2);

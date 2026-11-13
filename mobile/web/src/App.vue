@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import ForumStats from './ForumStats.vue'
 import Mailbox from './Mailbox.vue'
 import { ubbTokens } from './ubb.js'
 
@@ -45,6 +46,7 @@ const account = ref('')
 const checkingAccount = ref(true)
 const showMailbox = ref(false)
 const unreadMail = ref(0)
+const profile = ref(null)
 let mailTimer
 const username = ref('')
 const password = ref('')
@@ -182,6 +184,18 @@ async function refreshUnreadMail() {
   }
 }
 
+async function loadProfile() {
+  const member = account.value
+  if (!member || profile.value) return
+  try {
+    const response = await fetch(legacy + 'loginout.cgi?action=mobileprofile', {cache: 'no-store'})
+    const data = await response.json()
+    if (response.ok && account.value === member) profile.value = data
+  } catch {
+    // A later expansion can retry loading the profile.
+  }
+}
+
 async function refreshAccount() {
   checkingAccount.value = true
   try {
@@ -198,6 +212,7 @@ async function refreshAccount() {
 }
 
 async function logout() {
+  profile.value = null
   await fetch(legacy + 'loginout.cgi?action=logout')
   await refreshAccount()
 }
@@ -365,6 +380,10 @@ onUnmounted(() => {
       </nav>
     </template>
     <template v-else-if="!boardId">
+      <details v-if="account" class="panel" @toggle="$event.currentTarget.open && loadProfile()">
+        <summary class="bar">个人状态 · {{ account }} · {{ unreadMail }} 封未读</summary>
+        <p v-if="profile" class="row">现金 {{ profile.money }} 雷傲元 · 发帖 {{ profile.posts }} · 回复 {{ profile.replies }}</p>
+      </details>
       <section v-for="category in [...new Set(state.boards.map(board => board.category))]" :key="category" class="panel">
         <h1 class="bar">◇ {{ category }}</h1>
         <a v-for="board in state.boards.filter(board => board.category === category)" :key="board.id" :href="boardLink(board.id)" class="row entry">
@@ -382,6 +401,7 @@ onUnmounted(() => {
         </a>
         <p v-if="!state.latest.length" class="row">还没有主题</p>
       </section>
+      <ForumStats :stats="state.stats" />
     </template>
     <template v-else>
       <div class="crumb"><a href="/m/">首页</a> › <a :href="boardLink(boardId)">{{ state.board.name }}</a><template v-if="topicId"> › 帖子详情</template></div>

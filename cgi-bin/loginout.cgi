@@ -87,6 +87,17 @@ else {
 $memberfilename = $inmembername;
 $memberfilename =~ s/ /\_/g;
 $memberfilename =~ tr/A-Z/a-z/;
+if ($action eq "mobileprofile") {
+    require JSON::PP;
+    my $profile = {};
+    if ($userregistered ne "no" && $membername ne "" && $inpassword ne "") {
+        $profile = {money => 0 + ($mymoney || 0), posts => 0 + ($numberofposts || 0),
+            replies => 0 + ($numberofreplys || 0)};
+    }
+    print "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\n\r\n";
+    print JSON::PP->new->encode($profile);
+    exit;
+}
 # Report the member only after the existing cookie validation above.
 if ($action eq "mobilestatus") {
     print "Content-Type: text/plain; charset=gb2312\r\nCache-Control: no-store\r\n\r\n";

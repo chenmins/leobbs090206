@@ -76,3 +76,8 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .account-nav{margin-left:auto;display:flex;align-items:center;gap:6px;min-width:0}
 .account-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
 .account-nav button{flex:none}
+.forum-stats{margin:0;padding-left:28px;list-style-type:square}
+.forum-stats li::marker{color:var(--border)}
+.forum-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-item img{flex:none}
