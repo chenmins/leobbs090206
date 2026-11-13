@@ -1,0 +1,38 @@
+:root{font-family:Verdana,"Microsoft YaHei","PingFang SC",sans-serif;color:#151b2a;background:#eef2fa;--border:#4b76c7;--blue:#102c8c;--pale:#e8effb}
+*{box-sizing:border-box}
+body{margin:0}
+#app{max-width:700px;margin:0 auto;padding:8px}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible{outline:2px solid #123fab;outline-offset:2px}
+p,h1,h2{margin:0}
+.shell,.panel{border:1px solid var(--border);background:#fff}
+.masthead{min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 10px}
+.masthead img{display:block;width:145px;max-width:100%;height:auto}
+.masthead strong{font-size:clamp(13px,4vw,19px)}
+nav{display:flex;align-items:center;gap:12px;padding:0 10px;background:linear-gradient(#fff,#dae6f9);border-top:1px solid var(--border)}
+nav a{min-height:44px;display:inline-flex;align-items:center;font-size:14px}
+main{margin-top:14px}
+.panel{margin:0 0 14px}
+.bar{background:repeating-linear-gradient(90deg,#ffffff13 0 1px,transparent 1px 3px),linear-gradient(#3264ac,#5797de);color:#fff;font-size:17px;padding:9px 10px;overflow-wrap:anywhere}
+.heading,.actions,.byline{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.heading h1{font-size:inherit}
+.row{padding:10px;line-height:1.45;font-size:15px}
+.row+.row{border-top:1px solid #a2b9df}
+.entry{min-height:56px;display:flex;align-items:flex-start;gap:9px;overflow-wrap:anywhere}
+.entry img{width:16px;height:16px;object-fit:contain;margin-top:3px}
+.entry span{min-width:0;flex:1}
+small{display:block;color:#3d4860;font-size:12px;margin-top:3px}
+.counts{flex:none;white-space:nowrap}
+.crumb{padding:0 4px 10px;font-size:14px;color:#454f67}
+.intro,.byline{background:var(--pale)}
+.byline{padding:9px 10px;border-bottom:1px solid #b8cae8;font-size:14px;flex-wrap:wrap}
+.byline strong{color:var(--blue);overflow-wrap:anywhere}
+.byline b{margin-left:auto;color:#8d1919;font-size:12px}
+.body{min-height:80px;padding:12px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.button,button{border:1px solid #3f67a3;background:linear-gradient(#fff,#d9e6f9);color:var(--blue);padding:8px 12px;min-height:36px;display:inline-flex;align-items:center;font:inherit;white-space:nowrap;cursor:pointer}
+.actions{padding:0 0 12px}
+.pager{justify-content:center;padding:5px}
+footer{text-align:center;color:#53627e;padding:7px 0 12px;font-size:12px}
+nav a,.button{gap:5px}
+nav img,.button img{width:16px;height:16px;object-fit:contain}

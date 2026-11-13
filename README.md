@@ -130,3 +130,28 @@ docker compose exec leobbs chown -R www-data:www-data /var/www/html
 ## 许可证
 
 请参阅项目原始许可协议。
+
+## Vue 3 手机站与 JSON API
+
+在本地论坛安装并建立公开版块后，打开 [手机版](http://127.0.0.1:8080/m/)。
+Compose 以多阶段构建编译 `mobile/web`，独立的 Perl CGI 位于 `mobile/api`。两个程序同域部署，Vue 不读取论坛文件。
+
+`LEOBBS_MOBILE_PUBLIC_BOARDS` 是以逗号分隔的公开版块编号，本地默认 `1`。只填写允许游客阅读的版块。接口额外排除隐藏、私有、子版块、受密码保护或带独立样式配置的版块。关闭旧站游客阅读时，API 也不返回版块。
+
+| 路径 | 用途 |
+| --- | --- |
+| `GET /api/v1/home` | 公开版块和最新主题 |
+| `GET /api/v1/boards/{id}?page=1` | 版块及其主题，每页 20 条 |
+| `GET /api/v1/boards/{id}/topics/{id}?page=1` | 主题及楼层，每页 20 条 |
+
+API 将旧数据按 CP936（GBK）严格解码，输出 UTF-8 JSON。前端以文本方式显示正文。包含旧站特殊标记的楼层提供经典版入口。登录、搜索、发帖和回复进入现有表单，沿用旧站账号、编码和写入流程。
+
+如果本机无法拉取默认镜像，可以指定镜像地址再构建。
+
+```sh
+LEO_BBS_BASE_IMAGE=docker.m.daocloud.io/library/debian:trixie-slim \
+LEO_BBS_NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim \
+docker compose up -d --build
+```
+
+本地测试版块命名为「站务公告区」时，可运行 `python3 mobile/tests/smoke.py`。如果版块已有主题，检查也会读取首个主题及其楼层。

@@ -10,3 +10,9 @@ addon/*.pm
 addon/*.zip
 addon/*.rar
 addon/*.wml
+
+.codegraph/
+persist/
+
+mobile/web/node_modules/
+mobile/web/dist/
