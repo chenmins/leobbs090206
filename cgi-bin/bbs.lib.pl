@@ -698,6 +698,9 @@ if ($tablewidth > 100) {
 
 sub output {
         my ($title, $output, $outtype) = @_;
+        if ($thisprog =~ /^(?:leobbs|forums|topic)\.cgi$/) {
+            $$output .= '<script defer src="/non-cgi/images/mobile-switch.js?v=4"></script>';
+        }
         $title =~ s/\$/\&\#036\;/sg;
 
 	if (-e "${lbdir}data/template/$skin.cgi") {
