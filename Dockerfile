@@ -24,7 +24,7 @@ RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 instal
     && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache CGI and rewrite modules
-RUN a2enmod cgi cgid rewrite headers
+RUN a2enmod cgi cgid rewrite headers deflate
 
 # Configure Apache for LeoBBS
 RUN echo '<VirtualHost *:80>\n\
