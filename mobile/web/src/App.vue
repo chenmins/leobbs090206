@@ -50,10 +50,50 @@ const useUbb = ref(true)
 const formError = ref('')
 const busy = ref(false)
 
+const email = ref('')
+const confirmation = ref('')
+const agreed = ref(false)
+const challenge = ref(null)
+const code = ref('')
+const registrationReady = ref(false)
+const notice = ref('')
+
+async function prepareRegistration() {
+  registrationReady.value = false
+  challenge.value = null
+  code.value = ''
+  try {
+    const response = await fetch(legacy + 'register.cgi?action=agreed', {cache: 'no-store'})
+    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    if (mode.value !== 'register') return
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    const form = document.querySelector('form[name="creator"]')
+    if (!response.ok || !form || !document.querySelector('[name="password"]')) {
+      throw new Error('请使用经典版注册，当前注册设置需要原版流程。')
+    }
+    const session = document.querySelector('[name="sessionid"]')?.value
+    if (session) {
+      const image = document.querySelector('img[src*="/verifynum/"]')?.getAttribute('src')
+      const url = new URL(image || '', location.href)
+      if (url.origin !== location.origin || !url.pathname.startsWith('/non-cgi/verifynum/')) {
+        throw new Error('验证码无法加载，请使用经典版注册。')
+      }
+      challenge.value = {session, image: url.href}
+    }
+    registrationReady.value = true
+  } catch (error) {
+    if (mode.value === 'register') formError.value = error.message
+  }
+}
+
 function openForm(nextMode) {
   pendingAction.value = !account.value && ['addnew', 'addreply'].includes(nextMode) ? nextMode : ''
   mode.value = pendingAction.value ? 'login' : nextMode
   formError.value = pendingAction.value ? '请先登录，再发帖或回复。' : ''
+  if (nextMode === 'register') {
+    agreed.value = false
+    prepareRegistration()
+  }
   if (nextMode) window.scrollTo(0, 0)
 }
 
@@ -63,22 +103,45 @@ async function submit() {
   formError.value = ''
   const action = mode.value
   const login = action === 'login'
-  const fields = login
+  const registering = action === 'register'
+  if (registering && (!registrationReady.value || !agreed.value || password.value !== confirmation.value)) {
+    formError.value = '请确认两次密码一致，并同意注册条款。'
+    busy.value = false
+    return
+  }
+  let fields = login
     ? {action, inmembername: username.value, inpassword: password.value, CookieDate: '0'}
     : {action, forum: boardId.value, inpost: body.value, uselbcode: useUbb.value ? 'yes' : 'no'}
+  if (registering) {
+    fields = {action: 'addmember', inmembername: username.value.trim(), emailaddress: email.value.trim(),
+      password: password.value, password2: confirmation.value, showemail: 'no'}
+    if (challenge.value) Object.assign(fields, {sessionid: challenge.value.session, verifynum: code.value})
+  }
   if (action === 'addnew') fields.intopictitle = title.value
   if (action === 'addreply') fields.topic = topicId.value
   try {
     const encoded = await fetch('/api/v1/legacy-form', {method: 'POST', body: new URLSearchParams(fields)})
     const result = await encoded.json()
     if (!encoded.ok) throw new Error(result.error)
-    const response = await fetch(legacy + (login ? 'loginout.cgi' : 'post.cgi'), {
+    const response = await fetch(legacy + (registering ? 'register.cgi' : login ? 'loginout.cgi' : 'post.cgi'), {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: result.form,
     })
     const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
-    if (login) {
+    if (registering) {
+      if (!response.ok || !html.includes('感谢您注册')) {
+        const document = new DOMParser().parseFromString(html, 'text/html')
+        const reason = [...document.querySelectorAll('li')].find(item => item.textContent.includes('对不起'))
+        if (challenge.value) await prepareRegistration()
+        throw new Error(reason?.textContent.trim() || '注册失败，请核对资料或使用经典版注册。')
+      }
+      await refreshAccount()
+      password.value = ''
+      confirmation.value = ''
+      notice.value = account.value ? '注册成功，已登录。' : '注册成功，请按论坛要求查收邮件后登录。'
+      mode.value = account.value ? '' : 'login'
+    } else if (login) {
       if (!response.ok || !html.includes('感谢你登录')) throw new Error('登录失败，请核对用户名和密码')
       await refreshAccount()
       password.value = ''
@@ -183,12 +246,26 @@ onUnmounted(() => {
   </header>
 
   <main>
+    <p v-if="notice" class="panel row" role="status">{{ notice }}</p>
     <form v-if="mode" class="panel compose" @submit.prevent="submit">
-      <h2 class="bar">{{ {login: '登录', addnew: '发表主题', addreply: '回复'}[mode] }}</h2>
+      <h2 class="bar">{{ {login: '登录', register: '注册', addnew: '发表主题', addreply: '回复'}[mode] }}</h2>
       <div class="row">
         <template v-if="mode === 'login'">
           <label>用户名<input v-model="username" autocomplete="username" required></label>
           <label>密码<input v-model="password" type="password" autocomplete="current-password" required></label>
+        </template>
+        <template v-else-if="mode === 'register'">
+          <label>用户名<input v-model.trim="username" maxlength="12" autocomplete="username" required></label>
+          <label>邮箱<input v-model.trim="email" type="email" autocomplete="email" required></label>
+          <label>密码<input v-model="password" type="password" maxlength="20" autocomplete="new-password" required></label>
+          <label>确认密码<input v-model="confirmation" type="password" maxlength="20" autocomplete="new-password" required></label>
+          <label v-if="challenge">验证码
+            <img :src="challenge.image" alt="注册验证码">
+            <input v-model="code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required>
+          </label>
+          <button v-if="challenge" type="button" @click="prepareRegistration">换一张</button>
+          <label><input v-model="agreed" type="checkbox" required> 我同意<a :href="legacy + 'register.cgi'" target="_blank" rel="noopener">论坛注册条款</a></label>
+          <a :href="legacy + 'register.cgi'">经典版注册</a>
         </template>
         <template v-else>
           <label v-if="mode === 'addnew'">标题<input v-model.trim="title" maxlength="80" required></label>
@@ -196,8 +273,9 @@ onUnmounted(() => {
           <label><input v-model="useUbb" type="checkbox">启用 UBB</label>
         </template>
         <p v-if="formError" role="alert">{{ formError }}</p>
-        <button :disabled="busy">{{ busy ? '提交中…' : '提交' }}</button>
+        <button :disabled="busy || (mode === 'register' && !registrationReady)">{{ busy ? '提交中…' : '提交' }}</button>
         <button type="button" :disabled="busy" @click="openForm('')">取消</button>
+        <button v-if="mode === 'login'" type="button" :disabled="busy" @click="openForm('register')">注册</button>
       </div>
     </form>
     <section v-if="searching" class="panel">

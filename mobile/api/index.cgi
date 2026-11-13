@@ -99,7 +99,7 @@ sub page {
 # Encode a UTF-8 form for the legacy CGI, which still handles authentication and writes.
 sub legacy_form {
     my %allowed = map { $_ => 1 } qw(action forum topic inmembername inpassword
-        CookieDate intopictitle inpost uselbcode);
+        CookieDate intopictitle inpost uselbcode password password2 emailaddress showemail sessionid verifynum);
     my @pairs;
     for my $key ($query->param) {
         send_json('400 Bad Request', {error => '表单字段无效'}) unless $allowed{$key};
