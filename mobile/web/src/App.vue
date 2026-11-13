@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import ForumStats from './ForumStats.vue'
 import Mailbox from './Mailbox.vue'
-import { ubbTokens } from './ubb.js'
+import UbbBody from './ubb.js'
 
 const state = ref(null)
 const shareOpen = ref(false)
@@ -527,7 +527,7 @@ onUnmounted(() => {
             </template>
             <p v-else class="row">暂无会员资料</p>
           </section>
-          <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><template v-else><component :is="token.tag" v-for="(token, index) in (post.ubb ? ubbTokens(post.body) : [{tag: 'span', text: post.body}])" :key="index">{{ token.text }}</component></template></div>
+          <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><UbbBody v-else :body="post.body" :enabled="post.ubb" /></div>
         </article>
         <div class="actions">
           <a :href="desktopTopic">经典版帖子</a>

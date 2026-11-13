@@ -306,11 +306,6 @@ sub dispatch {
             my $body = text($raw_body);
             # Keep legacy visibility controls and advanced markup in the original renderer.
             my $desktop_only = $body =~ /LBHIDDEN|LBSALE|\[\/?(?:hide|postisdelete|adminope|uploadfile)/i;
-            # Only send text and the small set of UBB tags the client can render.
-            my $plain = $body;
-            $plain =~ s/\[\/?(?:b|i|u|quote|code)\]//ig;
-            $desktop_only ||= $plain =~ /\[[a-z][a-z0-9]*(?:=|\])/i;
-            $desktop_only ||= $plain =~ /<\/?[a-z]/i;
             push @posts, {author => text($f[0]), created => 0 + ($f[5] || 0),
                 body => $desktop_only ? '' : $body, ubb => $ubb_disabled ? JSON::PP::false : JSON::PP::true,
                 desktopOnly => $desktop_only ? JSON::PP::true : JSON::PP::false,
