@@ -52,3 +52,27 @@ nav .home-icon{min-width:44px;justify-content:center}
 .search-options label{display:block;margin:8px 0}
 .search-options select{font:inherit;max-width:100%}
 .search-options fieldset{border:1px solid var(--border);min-width:0}
+nav .mail-toggle{background:none;border:0;padding:0;min-width:36px;min-height:44px;justify-content:center}
+nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
+@media (prefers-reduced-motion: no-preference){
+  .mail-unread{animation:mail-blink 1.2s steps(2,start) infinite}
+}
+@keyframes mail-blink{50%{opacity:.25}}
+.mail-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.compose .mail-actions button+button{margin-left:0}
+.compose details summary{cursor:pointer}
+
+.mail-status{margin-left:4px;vertical-align:middle}
+.mail-summary{display:flex;align-items:center;gap:6px}
+.mail-summary .mail-status{margin:0;flex:none}
+.mail-title,.mail-person{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mail-person{margin:0 0 0 auto;max-width:40%;text-align:right;flex-shrink:0}
+.mail-actions img{width:24px;height:24px;object-fit:contain}
+.mail-actions button,.mail-actions a{display:inline-flex;flex-direction:column;align-items:center;gap:2px}
+.mail-actions:has(img){display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.mail-actions button:has(img),.mail-actions a:has(img){display:flex;justify-content:center;min-height:48px;padding:2px;border:1px solid var(--border);background:#fff}
+.mail-actions img{width:40px;height:40px}
+.mail-actions button[aria-current="page"]{background:#dbe8fd;border-color:#244e9b;box-shadow:inset 0 -3px #3568ba}
+.account-nav{margin-left:auto;display:flex;align-items:center;gap:6px;min-width:0}
+.account-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.account-nav button{flex:none}

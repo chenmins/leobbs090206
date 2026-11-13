@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import Mailbox from './Mailbox.vue'
 import { ubbTokens } from './ubb.js'
 
 const state = ref(null)
@@ -42,6 +43,9 @@ const mode = ref('')
 const pendingAction = ref('')
 const account = ref('')
 const checkingAccount = ref(true)
+const showMailbox = ref(false)
+const unreadMail = ref(0)
+let mailTimer
 const username = ref('')
 const password = ref('')
 const title = ref('')
@@ -166,6 +170,18 @@ async function submit() {
   }
 }
 
+async function refreshUnreadMail() {
+  const member = account.value
+  if (!member || document.hidden) return
+  try {
+    const response = await fetch(legacy + 'messanger.cgi?action=mobileinbox&summary=1', {cache: 'no-store'})
+    const data = await response.json()
+    if (response.ok && account.value === member) unreadMail.value = data.unread || 0
+  } catch {
+    // Keep the last successful count if the connection drops.
+  }
+}
+
 async function refreshAccount() {
   checkingAccount.value = true
   try {
@@ -176,6 +192,8 @@ async function refreshAccount() {
     account.value = ''
   } finally {
     checkingAccount.value = false
+    unreadMail.value = 0
+    if (account.value) refreshUnreadMail()
   }
 }
 
@@ -222,9 +240,13 @@ async function load() {
 }
 onMounted(() => {
   refreshAccount()
+  mailTimer = window.setInterval(refreshUnreadMail, 30000)
+  window.addEventListener('focus', refreshUnreadMail)
   load()
 })
 onUnmounted(() => {
+  window.clearInterval(mailTimer)
+  window.removeEventListener('focus', refreshUnreadMail)
   request?.abort()
 })
 </script>
@@ -239,13 +261,23 @@ onUnmounted(() => {
       <a href="/m/" class="home-icon" aria-label="首页" title="首页"><img :src="img + 'images/homepage.gif'" alt="">首页</a>
       <a href="/m/search">搜索</a>
       <a :href="legacy + 'leobbs.htm'">桌面版</a>
+      <button v-if="account" class="mail-toggle" :aria-expanded="showMailbox"
+        :aria-label="unreadMail ? '站内信，' + unreadMail + ' 封未读' : '站内信'"
+        :title="unreadMail ? unreadMail + ' 封未读站内信' : '站内信'"
+        @click="showMailbox = !showMailbox; refreshUnreadMail()">
+        <img :class="{'mail-unread': unreadMail}" :src="img + (unreadMail ? 'images/newmail.gif' : 'images/inboxnonew.gif')" alt="">
+      </button>
       <span v-if="checkingAccount" class="nav-action" role="status">检测中…</span>
       <button v-else-if="!account" class="nav-action" @click="openForm('login')">登录</button>
-      <button v-else class="nav-action" @click="logout">退出 {{ account }}</button>
+      <span v-else class="account-nav">
+        <span class="account-name">{{ account }}</span>
+        <button class="nav-action" @click="logout">退出</button>
+      </span>
     </nav>
   </header>
 
   <main>
+    <Mailbox v-if="account && showMailbox" @read="refreshUnreadMail" />
     <p v-if="notice" class="panel row" role="status">{{ notice }}</p>
     <form v-if="mode" class="panel compose" @submit.prevent="submit">
       <h2 class="bar">{{ {login: '登录', register: '注册', addnew: '发表主题', addreply: '回复'}[mode] }}</h2>

@@ -92,6 +92,40 @@ $memberfilename = $inmembername;
 $memberfilename =~ s/ /\_/g;
 $memberfilename =~ tr/A-Z/a-z/;
 
+# Use the authenticated member above for every mobile mailbox request.
+if ($action eq "mobileinbox" || $action eq "mobileoutbox") {
+    require JSON::PP;
+    require Encode;
+    require HTML::Entities;
+    my $box = $action eq "mobileinbox" ? "in/${memberfilename}_msg.cgi" : "out/${memberfilename}_out.cgi";
+    my @items;
+    my $page = scalar $query->param("page");
+    $page = 1 unless defined $page && $page =~ /\A[1-9][0-9]{0,4}\z/;
+    my $total = 0;
+    my $unread = 0;
+    my $summary = scalar $query->param("summary");
+    if (open(my $mail, "<:raw", "${lbdir}${msgdir}/$box")) {
+        flock($mail, 1) if $OS_USED eq "Unix";
+        while (my $line = <$mail>) {
+            $line =~ s/\r?\n\z//;
+            my ($person, $state, $date, $title, $body, $attachment) = split(/\t/, $line, -1);
+            next unless defined $body;
+            $unread++ if $state eq "no";
+            my $index = $total++;
+            next if $summary eq "1" || $index < ($page - 1) * 20 || $index >= $page * 20;
+            $person =~ s/^£ª£££¡£¦£ª//;
+            $body =~ s/<br\s*\/?\s*>/\n/ig;
+            my @text = map { HTML::Entities::decode_entities(Encode::decode("cp936", $_)) } ($person, $title, $body);
+            push @items, {person => $text[0], title => $text[1], body => $text[2],
+                index => $index, date => 0 + ($date || 0), unread => $state eq "no" ? 1 : 0};
+        }
+        close($mail);
+    }
+    print "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\n\r\n";
+    print JSON::PP->new->utf8->encode({items => \@items, unread => $unread, page => 0 + $page, pages => int(($total + 19) / 20) || 1});
+    exit;
+}
+
 $output .= qq~<script language="JavaScript">
 function bbimg(o){var zoom=parseInt(o.style.zoom,10)||100;zoom+=event.wheelDelta/12;if (zoom>0) o.style.zoom=zoom+'%';return false;}
 function openscript(url, width, height)
