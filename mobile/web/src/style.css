@@ -48,3 +48,7 @@ nav img,.button img{width:16px;height:16px;object-fit:contain}
 .search-form label{grid-column:1/-1}
 .search-form input{min-width:0;padding:8px;border:1px solid var(--border);font:inherit}
 nav .home-icon{min-width:44px;justify-content:center}
+.search-options{grid-column:1/-1}
+.search-options label{display:block;margin:8px 0}
+.search-options select{font:inherit;max-width:100%}
+.search-options fieldset{border:1px solid var(--border);min-width:0}

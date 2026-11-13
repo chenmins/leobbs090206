@@ -8,14 +8,25 @@ const route = ref([])
 let request
 
 const searching = computed(() => route.value[0] === 'search')
-const searchTerm = ref(new URLSearchParams(location.search).get('q') || '')
+const searchParams = new URLSearchParams(location.search)
+const searchTerm = ref(searchParams.get('q') || '')
+const searchBoards = ref([])
+const selectedBoards = ref(searchParams.getAll('board'))
 const searchDraft = ref(searchTerm.value)
 const boardId = computed(() => searching.value ? '' : route.value[0])
 function submitSearch(event) {
-  const query = String(new FormData(event.currentTarget).get('q') || '').trim()
-  if (query) location.assign('/m/search?' + new URLSearchParams({q: query}))
+  const filters = new URLSearchParams(new FormData(event.currentTarget))
+  const query = filters.get('q').trim()
+  if (query) {
+    filters.set('q', query)
+    location.assign('/m/search?' + filters)
+  }
 }
-const searchLink = index => '/m/search?' + new URLSearchParams({q: searchTerm.value, page: index})
+function searchLink(index) {
+  const filters = new URLSearchParams(searchParams)
+  filters.set('page', index)
+  return '/m/search?' + filters
+}
 const topicId = computed(() => route.value[1])
 const page = computed(() => new URLSearchParams(location.search).get('page') || 1)
 const boardLink = id => '/m/' + id
@@ -128,16 +139,20 @@ async function load() {
   window.scrollTo(0, 0)
   if (searching.value && !searchTerm.value.trim()) {
     state.value = {items: [], pages: 1}
+    fetch('/api/v1/home', {signal: controller.signal}).then(response => response.json()).then(data => { searchBoards.value = data.boards || [] }).catch(() => {})
     return
   }
   const path = searching.value ? '/search' : boardId.value
     ? '/boards/' + encodeURIComponent(boardId.value) + (topicId.value ? '/topics/' + encodeURIComponent(topicId.value) : '')
     : '/home'
   try {
-    const response = await fetch('/api/v1' + path + '?' + new URLSearchParams({page: page.value, ...(searching.value ? {q: searchTerm.value} : {})}), {signal: controller.signal})
+    const response = await fetch('/api/v1' + path + '?' + (searching.value ? searchParams : new URLSearchParams({page: page.value})), {signal: controller.signal})
     const data = await response.json()
     if (!response.ok) throw new Error(data.error)
-    if (!controller.signal.aborted) state.value = data
+    if (!controller.signal.aborted) {
+      state.value = data
+      if (searching.value) searchBoards.value = data.boards
+    }
   } catch (failure) {
     if (!controller.signal.aborted) error.value = failure.message || '暂时无法读取论坛'
   }
@@ -191,6 +206,35 @@ onUnmounted(() => {
         <label for="search-title">帖子标题</label>
         <input id="search-title" v-model="searchDraft" name="q" type="search" maxlength="80" required>
         <button type="submit">搜索</button>
+        <details class="search-options" :open="searchParams.has('mode')">
+          <summary>高级搜索</summary>
+          <label>搜索范围
+            <select name="mode" :value="searchParams.get('mode') || 'title'">
+              <option value="title">主题标题</option>
+              <option value="body">帖子正文</option>
+              <option value="both">标题和正文</option>
+              <option value="author">主题作者</option>
+              <option value="reply_author">回复作者</option>
+              <option value="all_authors">主题和回复作者</option>
+            </select>
+          </label>
+          <label>主题发表日期
+            <select name="days" :value="searchParams.get('days') || 'any'">
+              <option value="any">任何日期</option>
+              <option v-for="days in [1, 7, 14, 30, 90, 180, 365]" :key="days" :value="days">{{ days }} 天</option>
+            </select>
+            <select name="when" aria-label="日期方向" :value="searchParams.get('when') || 'after'">
+              <option value="after">之内</option><option value="before">之前</option>
+            </select>
+          </label>
+          <fieldset v-if="searchBoards.length">
+            <legend>搜索版块（未选时搜索所有公开版块）</legend>
+            <label v-for="board in searchBoards" :key="board.id">
+              <input v-model="selectedBoards" type="checkbox" name="board" :value="String(board.id)">
+              {{ board.category }} › {{ board.name }}
+            </label>
+          </fieldset>
+        </details>
       </form>
     </section>
     <p v-if="error" role="alert" class="panel row">{{ error }} <button @click="load">重试</button></p>

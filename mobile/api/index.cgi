@@ -123,21 +123,62 @@ sub dispatch {
     my $index = $query->param('page') // 1;
     send_json('400 Bad Request', {error => '页码无效'}) unless $index =~ /\A[1-9][0-9]{0,5}\z/;
     if ($path eq '/search') {
+        my $mode = scalar $query->param('mode') // 'title';
+        my $days = scalar $query->param('days') // 'any';
+        my $direction = scalar $query->param('when') // 'after';
+        my @boards = $query->multi_param('board');
+        send_json('400 Bad Request', {error => '搜索条件无效'})
+            unless $mode =~ /\A(?:title|body|both|author|reply_author|all_authors)\z/
+                && $days =~ /\A(?:any|1|7|14|30|90|180|365)\z/
+                && $direction =~ /\A(?:before|after)\z/
+                && !grep { !/\A[1-9][0-9]{0,9}\z/ } @boards;
+        my %selected = map { $_ => 1 } @boards;
         my $raw = scalar $query->param('q') // '';
         my $term = eval { decode('UTF-8', $raw, FB_CROAK) };
         send_json('400 Bad Request', {error => '请输入 1 至 80 个字符'})
             unless defined $term && $term =~ /\S/ && length($term) <= 80;
         $term =~ s/^\s+|\s+$//g;
         $term = fc($term);
+        my @terms = grep { length } map { s/^\s+|\s+$//gr } split /[,，]/, $term;
+        send_json('400 Bad Request', {error => '请输入关键词'}) unless @terms;
+        my $matches_text = sub {
+            my $value = fc($_[0]);
+            return scalar grep { index($value, $_) >= 0 } @terms;
+        };
+        my $cutoff = $days eq 'any' ? undef : time - $days * 86400;
         my @matches;
+        my @visible;
         for my $id (keys %enabled) {
             my $board = board($id) or next;
-            push @matches, map { +{%$_, boardId => $board->{id}, boardName => $board->{name}} }
-                grep { index(fc($_->{title}), $term) >= 0 } topics($id);
+            push @visible, $board;
+            next if @boards && !$selected{$id};
+            for my $topic (topics($id)) {
+                next if defined $cutoff && ($direction eq 'after'
+                    ? $topic->{created} < $cutoff : $topic->{created} > $cutoff);
+                my $found = $mode =~ /^(title|both)$/ && $matches_text->($topic->{title});
+                $found ||= $mode =~ /^(author|all_authors)$/ && $matches_text->($topic->{author});
+                if (!$found && $mode =~ /^(body|both|reply_author|all_authors)$/) {
+                    my @posts = rows("forum$id/$topic->{id}.thd.cgi");
+                    my $reply_search = $mode =~ /author/;
+                    shift @posts if $reply_search;
+                    for my $row (@posts) {
+                        my @f = fields($row);
+                        next unless @f >= 8;
+                        my $body = text($f[6]);
+                        next if $body =~ /LBHIDDEN|LBSALE|\[\/?(?:hide|postisdelete|adminope)/i;
+                        $body =~ s/<[^>]*>|\[\/?[a-z][^\]]*\]/ /ig;
+                        if ($matches_text->($reply_search ? text($f[0]) : $body)) {
+                            $found = 1;
+                            last;
+                        }
+                    }
+                }
+                push @matches, {%$topic, boardId => $board->{id}, boardName => $board->{name}} if $found;
+            }
         }
         @matches = sort { $b->{updated} <=> $a->{updated} || $a->{boardId} <=> $b->{boardId}
             || $a->{id} <=> $b->{id} } @matches;
-        send_json('200 OK', page($index, @matches));
+        send_json('200 OK', {%{page($index, @matches)}, boards => \@visible});
     }
     if ($path eq '/home') {
         my @boards = grep { defined } map { board($_) } sort { $a <=> $b } keys %enabled;
