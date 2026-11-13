@@ -193,7 +193,12 @@ sub author_profile {
                 + ($replies || 0) * ($settings->{replymoney} || 0)
                 + ($f[27] || 0) * ($settings->{loginmoney} || 0) + ($f[30] || 0)
                 - ($f[31] || 0) * ($settings->{delmoney} || 0) + ($f[39] || 0) * ($settings->{addjhhb} || 0);
-            return {title => $f[2] && lc($f[2]) ne 'member' ? text($f[2]) : $role_label,
+            my $avatar = '/non-cgi/avatars/' . ($f[18] =~ /\A[\w-]+\z/ ? $f[18] : 'noavatar') . '.gif';
+            if ($f[22] =~ m{(?:\$imagesurl|/non-cgi|https?://[^/]+/non-cgi)/((?:usravatars|avatars)/[\w.-]+\.(?:gif|png|jpe?g|webp))\z}i) {
+                $avatar = "/non-cgi/$1";
+            }
+            $avatar = '/non-cgi/avatars/noavatar.gif' unless -f "/var/www/html$avatar";
+            return {avatar => $avatar, title => $f[2] && lc($f[2]) ne 'member' ? text($f[2]) : $role_label,
                 level => text($level), badge => ($badge // '') =~ /\A[\w-]+\.gif\z/ ? $badge : '',
                 color => $color, roleIcon => $icon, online => $online->{lc $raw} ? 1 : 0,
                 reputation => 0 + ($f[25] || 0), points => 0 + ($f[44] || 0), cash => $cash,

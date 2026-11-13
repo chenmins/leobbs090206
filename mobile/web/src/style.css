@@ -100,3 +100,5 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .share-options{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .share-options input{min-width:0;width:100%;font:inherit}
 .share-options p{grid-column:1/-1}
+.author-avatar{grid-column:1/-1;display:grid;place-items:center;background:#e8f0fb;padding:8px}
+.author-fields .author-avatar img{width:auto;height:auto;max-width:100%;max-height:180px;object-fit:contain}

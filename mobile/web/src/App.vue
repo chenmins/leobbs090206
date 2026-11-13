@@ -499,6 +499,9 @@ onUnmounted(() => {
             </header>
             <template v-if="post.profile">
               <div class="row author-fields">
+                <div class="author-avatar">
+                  <img :src="post.profile.avatar" :alt="post.author + '的头像'">
+                </div>
                 <div>头衔 <b>{{ post.profile.title }}</b></div>
                 <div>等级 <a :href="legacy + 'lookinfo.cgi?action=style'">{{ post.profile.level || '—' }}</a>
                   <img v-if="post.profile.badge" :src="img + 'images/' + post.profile.badge" alt="">
