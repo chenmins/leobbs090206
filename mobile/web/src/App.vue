@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import ForumStats from './ForumStats.vue'
 import Mailbox from './Mailbox.vue'
 import UbbBody from './ubb.js'
+import UbbEditor from './UbbEditor.vue'
 
 const state = ref(null)
 const shareOpen = ref(false)
@@ -140,6 +141,42 @@ function openForm(nextMode) {
   if (nextMode) window.scrollTo(0, 0)
 }
 
+const editFields = ref(null)
+const editingTitle = ref(false)
+
+async function editPost(url, post) {
+  if (post.desktopOnly) {
+    location.assign(url)
+    return
+  }
+  if (busy.value) return
+  busy.value = true
+  formError.value = ''
+  try {
+    const response = await fetch(url, {cache: 'no-store'})
+    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    const input = doc.querySelector('textarea[name="inpost"]')
+    if (!response.ok || !input) throw new Error('无法打开编辑表单，请确认编辑权限。')
+    const fields = {action: 'processedit', forum: boardId.value, topic: topicId.value, postno: post.floor}
+    for (const name of ['posticon', 'inshowsignature', 'inshowemoticons', 'inshowchgfont', 'inwater', 'notify']) {
+      const option = doc.querySelector('input[name="' + name + '"]:checked')
+      if (option) fields[name] = option.value
+    }
+    const subject = doc.querySelector('input[name="newtopictitle"]')
+    editingTitle.value = Boolean(subject)
+    title.value = subject?.value || ''
+    body.value = input.value
+    useUbb.value = post.ubb
+    editFields.value = fields
+    openForm('processedit')
+  } catch (failure) {
+    notice.value = failure.message
+  } finally {
+    busy.value = false
+  }
+}
+
 async function submit() {
   if (busy.value) return
   busy.value = true
@@ -160,13 +197,17 @@ async function submit() {
       password: password.value, password2: confirmation.value, showemail: 'no'}
     if (challenge.value) Object.assign(fields, {sessionid: challenge.value.session, verifynum: code.value})
   }
+  if (action === 'processedit') {
+    fields = {...fields, ...editFields.value}
+    if (editingTitle.value) fields.newtopictitle = title.value
+  }
   if (action === 'addnew') fields.intopictitle = title.value
   if (action === 'addreply') fields.topic = topicId.value
   try {
     const encoded = await fetch('/api/v1/legacy-form', {method: 'POST', body: new URLSearchParams(fields)})
     const result = await encoded.json()
     if (!encoded.ok) throw new Error(result.error)
-    const response = await fetch(legacy + (registering ? 'register.cgi' : login ? 'loginout.cgi' : 'post.cgi'), {
+    const response = await fetch(legacy + (registering ? 'register.cgi' : login ? 'loginout.cgi' : action === 'processedit' ? 'editpost.cgi' : 'post.cgi'), {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: result.form,
@@ -193,7 +234,7 @@ async function submit() {
       pendingAction.value = ''
       formError.value = ''
     } else {
-      if (!response.ok || !/(新主题发表成功|回复成功)/.test(html)) {
+      if (!response.ok || !/(新主题发表成功|回复成功|编辑成功)/.test(html)) {
         const doc = new DOMParser().parseFromString(html, 'text/html')
         const reason = [...doc.querySelectorAll('li')].find(li => li.textContent.includes('对不起'))
         throw new Error(reason?.textContent.trim() || '提交失败，请确认已登录且有发帖权限')
@@ -233,6 +274,77 @@ async function loadProfile() {
   }
 }
 
+const postActions = ref({})
+let actionRequest = 0
+
+async function loadPostActions() {
+  const sequence = ++actionRequest
+  postActions.value = {}
+  if (!account.value || !topicId.value || !state.value?.topic) return
+  try {
+    const response = await fetch(desktopTopic.value, {cache: 'no-store'})
+    if (!response.ok) return
+    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    if (sequence !== actionRequest || !account.value) return
+    const classic = new DOMParser().parseFromString(html, 'text/html')
+    const actions = {}
+    for (const anchor of classic.querySelectorAll('a[href]')) {
+      const url = new URL(anchor.getAttribute('href'), location.origin + desktopTopic.value)
+      const type = url.pathname === '/cgi-bin/editpost.cgi' && url.searchParams.get('action') === 'edit'
+        ? 'edit' : url.pathname === '/cgi-bin/delpost.cgi' && url.searchParams.get('action') === 'directdel'
+          ? 'delete' : ''
+      const image = anchor.querySelector('img')
+      const control = type === 'edit' ? 'edit.gif' : 'del.gif'
+      if (!image?.getAttribute('src')?.endsWith('/images/' + control)) continue
+      const floor = url.searchParams.get('postno')
+      if (!type || !/^[1-9][0-9]*$/.test(floor || '') || url.origin !== location.origin ||
+        url.searchParams.get('forum') !== boardId.value || url.searchParams.get('topic') !== topicId.value) continue
+      const path = url.pathname + '?' + new URLSearchParams({
+        action: type === 'edit' ? 'edit' : 'directdel', forum: boardId.value, topic: topicId.value, postno: floor,
+      })
+      ;(actions[floor] ||= {})[type] = path
+    }
+    const permissions = await fetch(legacy + 'delpost.cgi?' + new URLSearchParams({
+      action: 'mobilepermissions', forum: boardId.value, topic: topicId.value,
+    }), {cache: 'no-store'})
+    if (permissions.ok) {
+      const allowed = await permissions.json().catch(() => ({}))
+      for (const floor of Object.keys(allowed)) (actions[floor] ||= {}).remove = true
+    }
+    if (sequence === actionRequest && account.value) postActions.value = actions
+  } catch {
+    // Classic permissions could not be loaded.
+  }
+}
+
+async function deletePost(floor) {
+  const topic = floor === 1
+  if (busy.value || !window.confirm(topic ? '确定删除整个主题及其回复？' : '确定删除这条回复？')) return
+  busy.value = true
+  notice.value = ''
+  try {
+    const fields = new URLSearchParams({
+      action: topic ? 'delete' : 'directdel', checked: 'yes', leavemessage: 'yes',
+      forum: boardId.value, topic: topicId.value, postno: floor,
+    })
+    const response = await fetch(legacy + 'delpost.cgi', {method: 'POST', body: fields})
+    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    const message = new DOMParser().parseFromString(html, 'text/html').body.textContent
+    if (!response.ok || !(topic ? /删除成功/ : /已删除\s*\d+\s*篇回复/).test(message)) {
+      throw new Error('删除失败，请确认你仍有删除权限。')
+    }
+    if (topic) location.assign(boardLink(boardId.value))
+    else {
+      await load()
+      notice.value = '回复已删除。'
+    }
+  } catch (failure) {
+    notice.value = failure.message
+  } finally {
+    busy.value = false
+  }
+}
+
 async function refreshAccount() {
   checkingAccount.value = true
   try {
@@ -245,6 +357,7 @@ async function refreshAccount() {
     checkingAccount.value = false
     unreadMail.value = 0
     if (account.value) refreshUnreadMail()
+    loadPostActions()
   }
 }
 
@@ -284,6 +397,7 @@ async function load() {
     if (!response.ok) throw new Error(data.error)
     if (!controller.signal.aborted) {
       state.value = data
+      loadPostActions()
       if (searching.value) searchBoards.value = data.boards
     }
   } catch (failure) {
@@ -338,7 +452,7 @@ onUnmounted(() => {
     <Mailbox v-if="account && showMailbox" :key="mailboxKey" :initial-box="initialMailbox" @read="refreshUnreadMail" />
     <p v-if="notice" class="panel row" role="status">{{ notice }}</p>
     <form v-if="mode" class="panel compose" @submit.prevent="submit">
-      <h2 class="bar">{{ {login: '登录', register: '注册', addnew: '发表主题', addreply: '回复'}[mode] }}</h2>
+      <h2 class="bar">{{ {login: '登录', register: '注册', addnew: '发表主题', addreply: '回复', processedit: '编辑帖子'}[mode] }}</h2>
       <div class="row">
         <template v-if="mode === 'login'">
           <label>用户名<input v-model="username" autocomplete="username" required></label>
@@ -358,13 +472,13 @@ onUnmounted(() => {
           <a :href="legacy + 'register.cgi'">经典版注册</a>
         </template>
         <template v-else>
-          <label v-if="mode === 'addnew'">标题<input v-model.trim="title" maxlength="80" required></label>
-          <label>正文<textarea v-model="body" rows="6" maxlength="8000" required></textarea></label>
+          <label v-if="mode === 'addnew' || (mode === 'processedit' && editingTitle)">标题<input v-model.trim="title" maxlength="80" required></label>
+          <UbbEditor v-model="body" :enabled="useUbb" />
           <label><input v-model="useUbb" type="checkbox">启用 UBB</label>
         </template>
         <p v-if="formError" role="alert">{{ formError }}</p>
-        <button :disabled="busy || (mode === 'register' && !registrationReady)">{{ busy ? '提交中…' : '提交' }}</button>
-        <button type="button" :disabled="busy" @click="openForm('')">取消</button>
+        <button :disabled="busy || (mode === 'register' && !registrationReady)"><img v-if="['addnew', 'addreply', 'processedit'].includes(mode)" class="submit-icon" :src="img + 'images/yes.gif'" alt="">{{ busy ? '提交中…' : '提交' }}</button>
+        <button type="button" :disabled="busy" @click="openForm('')"><img v-if="['addnew', 'addreply', 'processedit'].includes(mode)" class="submit-icon" :src="img + 'images/no.gif'" alt="">取消</button>
         <button v-if="mode === 'login'" type="button" :disabled="busy" @click="openForm('register')">注册</button>
       </div>
     </form>
@@ -479,7 +593,7 @@ onUnmounted(() => {
       <template v-else>
         <div class="bar panel heading">
           <h1>{{ state.topic.title }}</h1>
-          <button class="button share-button" type="button" @click="shareTopic">分享</button>
+          <button class="button share-button" type="button" @click="shareTopic"><img :src="img + 'images/copy.gif'" alt="">分享</button>
         </div>
         <section v-if="shareOpen" class="panel row share-options" aria-label="分享帖子">
           <input :value="shareUrl" aria-label="帖子链接" readonly @focus="$event.target.select()">
@@ -528,6 +642,11 @@ onUnmounted(() => {
             <p v-else class="row">暂无会员资料</p>
           </section>
           <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><UbbBody v-else :body="post.body" :enabled="post.ubb" /></div>
+          <footer v-if="postActions[post.floor]" class="row post-actions">
+            <button v-if="postActions[post.floor].edit" type="button" @click="editPost(postActions[post.floor].edit, post)"><img :src="img + 'images/edit.gif'" alt="">编辑</button>
+            <button v-if="postActions[post.floor].remove" type="button"
+              @click="deletePost(post.floor)"><img :src="img + 'images/del.gif'" alt="">{{ post.floor === 1 ? '删除主题' : '删除回复' }}</button>
+          </footer>
         </article>
         <div class="actions">
           <a :href="desktopTopic">经典版帖子</a>

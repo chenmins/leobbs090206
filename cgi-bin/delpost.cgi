@@ -106,6 +106,26 @@ if ($inmembername eq "" || $inmembername eq "øÕ»À" ) {
 $defaultsmilewidth  = "width=$defaultsmilewidth"   if ($defaultsmilewidth ne "" );
 $defaultsmileheight = "height=$defaultsmileheight" if ($defaultsmileheight ne "");
     &cleanolddata;
+if ($action eq "mobilepermissions") {
+    require JSON::PP;
+    my %allowed;
+    if ($userregistered ne "no" && $inpassword ne "" && $inpassword eq $password
+        && $inforum =~ /\A[1-9][0-9]*\z/ && $intopic =~ /\A[1-9][0-9]*\z/
+        && open(my $posts, "<:raw", "${lbdir}forum$inforum/$intopic.thd.cgi")) {
+        my $moderator = $membercode eq "ad" || $membercode eq "smo"
+            || ($inmembmod eq "yes" && $membercode ne "amo");
+        my $floor = 0;
+        while (my $row = <$posts>) {
+            my ($author) = split /\t/, $row, 2;
+            ++$floor;
+            $allowed{$floor} = 1 if $moderator || ($arrowuserdel eq "on"
+                && lc($author) eq lc($inmembername));
+        }
+        close $posts;
+    }
+    print JSON::PP->new->encode(\%allowed);
+    exit;
+}
 my %Mode = (
     'delete'      =>    \&deletethread,
     'movetopic'   =>    \&movetopic,
