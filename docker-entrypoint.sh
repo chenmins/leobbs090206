@@ -15,6 +15,12 @@ seed_tree_if_missing() {
 seed_tree_if_missing /opt/leobbs-seed/cgi-bin /var/www/html/cgi-bin install.cgi
 seed_tree_if_missing /opt/leobbs-seed/non-cgi /var/www/html/non-cgi index.html
 
+# Upgrade the refresh guard in existing installations while preserving local CGI edits.
+perl -pi -e 'if (/if \(\(\(\$currenttime - \$savedtime\)/ && /\$thisprog eq "whosonline\.cgi"/) {
+    s/if \(\(\(\$currenttime/if ((\$thisprog eq "post.cgi") \&\& ((\$currenttime/;
+    s/\&\&\(\(\$thisprog eq "post\.cgi"\).*?\)\) \{/){/;
+}' /var/www/html/cgi-bin/bbs.lib.pl
+
 find /var/www/html/cgi-bin -type f -name "*.cgi" -exec chmod 755 {} \; || true
 find /var/www/html/cgi-bin -type f -name "*.pl" -exec chmod 755 {} \; || true
 find /var/www/html/cgi-bin -type f -name "*.pm" -exec chmod 644 {} \; || true
