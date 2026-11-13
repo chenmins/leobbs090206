@@ -642,6 +642,9 @@ onUnmounted(() => {
             <p v-else class="row">暂无会员资料</p>
           </section>
           <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><UbbBody v-else :body="post.body" :enabled="post.ubb" /></div>
+          <p v-if="post.edit" class="post-edit-note">
+            {{ post.edit.editor }} 于 {{ post.edit.time }} 编辑 · 第 {{ post.edit.count }} 次
+          </p>
           <footer v-if="postActions[post.floor]" class="row post-actions">
             <button v-if="postActions[post.floor].edit" type="button" @click="editPost(postActions[post.floor].edit, post)"><img :src="img + 'images/edit.gif'" alt="">编辑</button>
             <button v-if="postActions[post.floor].remove" type="button"

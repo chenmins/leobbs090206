@@ -304,12 +304,20 @@ sub dispatch {
             my $ubb_disabled = $raw_body =~ s/\[DISABLELBCODE\]\z//i;
             $raw_body =~ s/<br\s*\/?\s*>/\n/ig;
             my $body = text($raw_body);
+            my $edit;
+            # LeoBBS prepends an edit notice before the actual post body.
+            if ($body =~ s/\A\[这个贴子最后由([^\]\r\n]+?)在\s+(\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}(?:am|pm)?)\s+第\s+(\d+)\s+次编辑\]//i) {
+                my ($editor, $when, $count) = ($1, $2, $3);
+                $body =~ s/\A\[\/这个贴子最后由\Q$editor\E在\s+\Q$when\E\s+第\s+\Q$count\E\s+次编辑\]//i;
+                $body =~ s/\A\n+//;
+                $edit = {editor => $editor, time => $when, count => 0 + $count};
+            }
             # Keep legacy visibility controls and advanced markup in the original renderer.
             my $desktop_only = $body =~ /LBHIDDEN|LBSALE|\[\/?(?:hide|postisdelete|adminope|uploadfile)/i;
             push @posts, {author => text($f[0]), created => 0 + ($f[5] || 0),
                 body => $desktop_only ? '' : $body, ubb => $ubb_disabled ? JSON::PP::false : JSON::PP::true,
                 desktopOnly => $desktop_only ? JSON::PP::true : JSON::PP::false,
-                floor => 1 + @posts, rawAuthor => $f[0]};
+                edit => $desktop_only ? undef : $edit, floor => 1 + @posts, rawAuthor => $f[0]};
         }
         send_json('404 Not Found', {error => '主题不存在'}) unless @posts;
         my $result = page($index, @posts);

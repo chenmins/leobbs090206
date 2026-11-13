@@ -120,3 +120,5 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .editor-switch{margin-bottom:8px}
 .sc-editor{margin-bottom:8px;min-width:0}
 .sc-editor .sceditor-container{max-width:100%;box-sizing:border-box}
+
+.post-edit-note{margin:0;padding:0 12px 10px;color:#59677c;font-size:12px;overflow-wrap:anywhere}
