@@ -1,0 +1,466 @@
+<script setup>
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import ForumStats from './ForumStats.vue'
+import Mailbox from './Mailbox.vue'
+import { ubbTokens } from './ubb.js'
+
+const state = ref(null)
+const error = ref('')
+const route = ref([])
+let request
+
+const searching = computed(() => route.value[0] === 'search')
+const searchParams = new URLSearchParams(location.search)
+const searchTerm = ref(searchParams.get('q') || '')
+const searchBoards = ref([])
+const selectedBoards = ref(searchParams.getAll('board'))
+const searchDraft = ref(searchTerm.value)
+const boardId = computed(() => searching.value ? '' : route.value[0])
+function submitSearch(event) {
+  const filters = new URLSearchParams(new FormData(event.currentTarget))
+  const query = filters.get('q').trim()
+  if (query) {
+    filters.set('q', query)
+    location.assign('/m/search?' + filters)
+  }
+}
+function searchLink(index) {
+  const filters = new URLSearchParams(searchParams)
+  filters.set('page', index)
+  return '/m/search?' + filters
+}
+const topicId = computed(() => route.value[1])
+const page = computed(() => new URLSearchParams(location.search).get('page') || 1)
+const boardLink = id => '/m/' + id
+const topicLink = (board, topic) => boardLink(board) + '/' + topic
+const pageLink = index => (topicId.value ? topicLink(boardId.value, topicId.value) : boardLink(boardId.value)) + '?page=' + index
+const legacy = '/cgi-bin/'
+const img = '/non-cgi/'
+const date = new Intl.DateTimeFormat('zh-CN', {dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Shanghai'})
+const formatDate = value => value ? date.format(value * 1000) : ''
+const desktopTopic = computed(() => legacy + 'topic.cgi?forum=' + boardId.value + '&topic=' + topicId.value)
+
+const mode = ref('')
+const pendingAction = ref('')
+const account = ref('')
+const checkingAccount = ref(true)
+const showMailbox = ref(false)
+const initialMailbox = ref('inbox')
+const mailboxKey = ref(0)
+function openMailbox(box) {
+  initialMailbox.value = box
+  mailboxKey.value++
+  showMailbox.value = true
+  window.scrollTo(0, 0)
+}
+const unreadMail = ref(0)
+const profile = ref(null)
+let mailTimer
+const username = ref('')
+const password = ref('')
+const title = ref('')
+const body = ref('')
+const useUbb = ref(true)
+const formError = ref('')
+const busy = ref(false)
+
+const email = ref('')
+const confirmation = ref('')
+const agreed = ref(false)
+const challenge = ref(null)
+const code = ref('')
+const registrationReady = ref(false)
+const notice = ref('')
+
+async function prepareRegistration() {
+  registrationReady.value = false
+  challenge.value = null
+  code.value = ''
+  try {
+    const response = await fetch(legacy + 'register.cgi?action=agreed', {cache: 'no-store'})
+    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    if (mode.value !== 'register') return
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    const form = document.querySelector('form[name="creator"]')
+    if (!response.ok || !form || !document.querySelector('[name="password"]')) {
+      throw new Error('请使用经典版注册，当前注册设置需要原版流程。')
+    }
+    const session = document.querySelector('[name="sessionid"]')?.value
+    if (session) {
+      const image = document.querySelector('img[src*="/verifynum/"]')?.getAttribute('src')
+      const url = new URL(image || '', location.href)
+      if (url.origin !== location.origin || !url.pathname.startsWith('/non-cgi/verifynum/')) {
+        throw new Error('验证码无法加载，请使用经典版注册。')
+      }
+      challenge.value = {session, image: url.href}
+    }
+    registrationReady.value = true
+  } catch (error) {
+    if (mode.value === 'register') formError.value = error.message
+  }
+}
+
+function openForm(nextMode) {
+  pendingAction.value = !account.value && ['addnew', 'addreply'].includes(nextMode) ? nextMode : ''
+  mode.value = pendingAction.value ? 'login' : nextMode
+  formError.value = pendingAction.value ? '请先登录，再发帖或回复。' : ''
+  if (nextMode === 'register') {
+    agreed.value = false
+    prepareRegistration()
+  }
+  if (nextMode) window.scrollTo(0, 0)
+}
+
+async function submit() {
+  if (busy.value) return
+  busy.value = true
+  formError.value = ''
+  const action = mode.value
+  const login = action === 'login'
+  const registering = action === 'register'
+  if (registering && (!registrationReady.value || !agreed.value || password.value !== confirmation.value)) {
+    formError.value = '请确认两次密码一致，并同意注册条款。'
+    busy.value = false
+    return
+  }
+  let fields = login
+    ? {action, inmembername: username.value, inpassword: password.value, CookieDate: '0'}
+    : {action, forum: boardId.value, inpost: body.value, uselbcode: useUbb.value ? 'yes' : 'no'}
+  if (registering) {
+    fields = {action: 'addmember', inmembername: username.value.trim(), emailaddress: email.value.trim(),
+      password: password.value, password2: confirmation.value, showemail: 'no'}
+    if (challenge.value) Object.assign(fields, {sessionid: challenge.value.session, verifynum: code.value})
+  }
+  if (action === 'addnew') fields.intopictitle = title.value
+  if (action === 'addreply') fields.topic = topicId.value
+  try {
+    const encoded = await fetch('/api/v1/legacy-form', {method: 'POST', body: new URLSearchParams(fields)})
+    const result = await encoded.json()
+    if (!encoded.ok) throw new Error(result.error)
+    const response = await fetch(legacy + (registering ? 'register.cgi' : login ? 'loginout.cgi' : 'post.cgi'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: result.form,
+    })
+    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    if (registering) {
+      if (!response.ok || !html.includes('感谢您注册')) {
+        const document = new DOMParser().parseFromString(html, 'text/html')
+        const reason = [...document.querySelectorAll('li')].find(item => item.textContent.includes('对不起'))
+        if (challenge.value) await prepareRegistration()
+        throw new Error(reason?.textContent.trim() || '注册失败，请核对资料或使用经典版注册。')
+      }
+      await refreshAccount()
+      password.value = ''
+      confirmation.value = ''
+      notice.value = account.value ? '注册成功，已登录。' : '注册成功，请按论坛要求查收邮件后登录。'
+      mode.value = account.value ? '' : 'login'
+    } else if (login) {
+      if (!response.ok || !html.includes('感谢你登录')) throw new Error('登录失败，请核对用户名和密码')
+      await refreshAccount()
+      password.value = ''
+      if (!account.value) throw new Error('登录状态未生效，请重试')
+      mode.value = pendingAction.value
+      pendingAction.value = ''
+      formError.value = ''
+    } else {
+      if (!response.ok || !/(新主题发表成功|回复成功)/.test(html)) {
+        const doc = new DOMParser().parseFromString(html, 'text/html')
+        const reason = [...doc.querySelectorAll('li')].find(li => li.textContent.includes('对不起'))
+        throw new Error(reason?.textContent.trim() || '提交失败，请确认已登录且有发帖权限')
+      }
+      const newTopic = html.match(/topic\.cgi\?forum=\d+&topic=(\d+)/)?.[1]
+      if (action === 'addnew' && newTopic) location.assign(topicLink(boardId.value, newTopic))
+      else location.reload()
+    }
+  } catch (failure) {
+    formError.value = failure.message || '提交失败'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function refreshUnreadMail() {
+  const member = account.value
+  if (!member || document.hidden) return
+  try {
+    const response = await fetch(legacy + 'messanger.cgi?action=mobileinbox&summary=1', {cache: 'no-store'})
+    const data = await response.json()
+    if (response.ok && account.value === member) unreadMail.value = data.unread || 0
+  } catch {
+    // Keep the last successful count if the connection drops.
+  }
+}
+
+async function loadProfile() {
+  const member = account.value
+  if (!member || profile.value) return
+  try {
+    const response = await fetch(legacy + 'loginout.cgi?action=mobileprofile', {cache: 'no-store'})
+    const data = await response.json()
+    if (response.ok && account.value === member) profile.value = data
+  } catch {
+    // A later expansion can retry loading the profile.
+  }
+}
+
+async function refreshAccount() {
+  checkingAccount.value = true
+  try {
+    const response = await fetch(legacy + 'loginout.cgi?action=mobilestatus', {cache: 'no-store'})
+    const text = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    account.value = response.ok ? text.match(/^LEOBBS_MEMBER:([^\r\n]+)$/)?.[1] || '' : ''
+  } catch {
+    account.value = ''
+  } finally {
+    checkingAccount.value = false
+    unreadMail.value = 0
+    if (account.value) refreshUnreadMail()
+  }
+}
+
+async function logout() {
+  profile.value = null
+  await fetch(legacy + 'loginout.cgi?action=logout')
+  await refreshAccount()
+}
+
+async function load() {
+  // Cancel the previous navigation so a slow response cannot overwrite the current page.
+  request?.abort()
+  const controller = new AbortController()
+  request = controller
+  // Convert old bookmarks before reading the current path.
+  const oldRoute = location.hash.match(/^#\/(\d*)(?:\/(\d*))?(?:\/(\d+))?$/)
+  if (oldRoute) {
+    const [, board, topic, index] = oldRoute
+    const path = topic ? topicLink(board, topic) : board ? boardLink(board) : '/m/'
+    history.replaceState(null, '', path + (index ? '?page=' + index : ''))
+  }
+  route.value = location.pathname.slice('/m/'.length).split('/')
+  state.value = null
+  error.value = ''
+  window.scrollTo(0, 0)
+  if (searching.value && !searchTerm.value.trim()) {
+    state.value = {items: [], pages: 1}
+    fetch('/api/v1/home', {signal: controller.signal}).then(response => response.json()).then(data => { searchBoards.value = data.boards || [] }).catch(() => {})
+    return
+  }
+  const path = searching.value ? '/search' : boardId.value
+    ? '/boards/' + encodeURIComponent(boardId.value) + (topicId.value ? '/topics/' + encodeURIComponent(topicId.value) : '')
+    : '/home'
+  try {
+    const response = await fetch('/api/v1' + path + '?' + (searching.value ? searchParams : new URLSearchParams({page: page.value})), {signal: controller.signal})
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+    if (!controller.signal.aborted) {
+      state.value = data
+      if (searching.value) searchBoards.value = data.boards
+    }
+  } catch (failure) {
+    if (!controller.signal.aborted) error.value = failure.message || '暂时无法读取论坛'
+  }
+}
+onMounted(() => {
+  refreshAccount()
+  mailTimer = window.setInterval(refreshUnreadMail, 30000)
+  window.addEventListener('focus', refreshUnreadMail)
+  load()
+})
+onUnmounted(() => {
+  window.clearInterval(mailTimer)
+  window.removeEventListener('focus', refreshUnreadMail)
+  request?.abort()
+})
+</script>
+
+<template>
+  <header class="shell">
+    <div class="masthead">
+      <a href="/m/" aria-label="LeoBBS 首页"><img :src="img + 'myimages/mainlogo.gif'" alt="LeoBBS"></a>
+      <strong>雷傲极酷超级论坛</strong>
+    </div>
+    <nav aria-label="论坛导航">
+      <a href="/m/" class="home-icon" aria-label="首页" title="首页"><img :src="img + 'images/homepage.gif'" alt="">首页</a>
+      <a href="/m/search">搜索</a>
+      <a :href="legacy + 'leobbs.htm'">桌面版</a>
+      <button v-if="account" class="mail-toggle" :aria-expanded="showMailbox"
+        :aria-label="unreadMail ? '站内信，' + unreadMail + ' 封未读' : '站内信'"
+        :title="unreadMail ? unreadMail + ' 封未读站内信' : '站内信'"
+        @click="showMailbox = !showMailbox; refreshUnreadMail()">
+        <img :class="{'mail-unread': unreadMail}" :src="img + (unreadMail ? 'images/newmail.gif' : 'images/inboxnonew.gif')" alt="">
+      </button>
+      <span v-if="checkingAccount" class="nav-action" role="status">检测中…</span>
+      <button v-else-if="!account" class="nav-action" @click="openForm('login')">登录</button>
+      <span v-else class="account-nav">
+        <span class="account-name">{{ account }}</span>
+        <button class="nav-action" @click="logout">退出</button>
+      </span>
+    </nav>
+  </header>
+
+  <main>
+    <Mailbox v-if="account && showMailbox" :key="mailboxKey" :initial-box="initialMailbox" @read="refreshUnreadMail" />
+    <p v-if="notice" class="panel row" role="status">{{ notice }}</p>
+    <form v-if="mode" class="panel compose" @submit.prevent="submit">
+      <h2 class="bar">{{ {login: '登录', register: '注册', addnew: '发表主题', addreply: '回复'}[mode] }}</h2>
+      <div class="row">
+        <template v-if="mode === 'login'">
+          <label>用户名<input v-model="username" autocomplete="username" required></label>
+          <label>密码<input v-model="password" type="password" autocomplete="current-password" required></label>
+        </template>
+        <template v-else-if="mode === 'register'">
+          <label>用户名<input v-model.trim="username" maxlength="12" autocomplete="username" required></label>
+          <label>邮箱<input v-model.trim="email" type="email" autocomplete="email" required></label>
+          <label>密码<input v-model="password" type="password" maxlength="20" autocomplete="new-password" required></label>
+          <label>确认密码<input v-model="confirmation" type="password" maxlength="20" autocomplete="new-password" required></label>
+          <label v-if="challenge">验证码
+            <img :src="challenge.image" alt="注册验证码">
+            <input v-model="code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required>
+          </label>
+          <button v-if="challenge" type="button" @click="prepareRegistration">换一张</button>
+          <label><input v-model="agreed" type="checkbox" required> 我同意<a :href="legacy + 'register.cgi'" target="_blank" rel="noopener">论坛注册条款</a></label>
+          <a :href="legacy + 'register.cgi'">经典版注册</a>
+        </template>
+        <template v-else>
+          <label v-if="mode === 'addnew'">标题<input v-model.trim="title" maxlength="80" required></label>
+          <label>正文<textarea v-model="body" rows="6" maxlength="8000" required></textarea></label>
+          <label><input v-model="useUbb" type="checkbox">启用 UBB</label>
+        </template>
+        <p v-if="formError" role="alert">{{ formError }}</p>
+        <button :disabled="busy || (mode === 'register' && !registrationReady)">{{ busy ? '提交中…' : '提交' }}</button>
+        <button type="button" :disabled="busy" @click="openForm('')">取消</button>
+        <button v-if="mode === 'login'" type="button" :disabled="busy" @click="openForm('register')">注册</button>
+      </div>
+    </form>
+    <section v-if="searching" class="panel">
+      <h1 class="bar">搜索帖子</h1>
+      <form class="row search-form" action="/m/search" @submit.prevent="submitSearch">
+        <label for="search-title">帖子标题</label>
+        <input id="search-title" v-model="searchDraft" name="q" type="search" maxlength="80" required>
+        <button type="submit">搜索</button>
+        <details class="search-options" :open="searchParams.has('mode')">
+          <summary>高级搜索</summary>
+          <label>搜索范围
+            <select name="mode" :value="searchParams.get('mode') || 'title'">
+              <option value="title">主题标题</option>
+              <option value="body">帖子正文</option>
+              <option value="both">标题和正文</option>
+              <option value="author">主题作者</option>
+              <option value="reply_author">回复作者</option>
+              <option value="all_authors">主题和回复作者</option>
+            </select>
+          </label>
+          <label>主题发表日期
+            <select name="days" :value="searchParams.get('days') || 'any'">
+              <option value="any">任何日期</option>
+              <option v-for="days in [1, 7, 14, 30, 90, 180, 365]" :key="days" :value="days">{{ days }} 天</option>
+            </select>
+            <select name="when" aria-label="日期方向" :value="searchParams.get('when') || 'after'">
+              <option value="after">之内</option><option value="before">之前</option>
+            </select>
+          </label>
+          <fieldset v-if="searchBoards.length">
+            <legend>搜索版块（未选时搜索所有公开版块）</legend>
+            <label v-for="board in searchBoards" :key="board.id">
+              <input v-model="selectedBoards" type="checkbox" name="board" :value="String(board.id)">
+              {{ board.category }} › {{ board.name }}
+            </label>
+          </fieldset>
+        </details>
+      </form>
+    </section>
+    <p v-if="error" role="alert" class="panel row">{{ error }} <button @click="load">重试</button></p>
+    <p v-else-if="!state" role="status" class="panel row">正在读取论坛…</p>
+    <template v-else-if="searching">
+      <section v-if="searchTerm.trim()" class="panel">
+        <h2 class="bar">搜索结果</h2>
+        <a v-for="topic in state.items" :key="topic.boardId + '-' + topic.id" class="row entry" :href="topicLink(topic.boardId, topic.id)">
+          <img :src="img + 'posticons/' + topic.icon + '.gif'" alt="">
+          <span><b>{{ topic.title }}</b><small>{{ topic.boardName }} · {{ topic.author }} · {{ formatDate(topic.updated) }}</small></span>
+        </a>
+        <p v-if="!state.items.length" class="row">没有找到匹配的帖子</p>
+      </section>
+      <nav v-if="state.pages > 1 || page > 1" class="panel pager" aria-label="搜索分页">
+        <a v-if="page > 1" class="button" :href="searchLink(Number(page) - 1)">上一页</a>
+        <span>{{ page }} / {{ state.pages }}</span>
+        <a v-if="page < state.pages" class="button" :href="searchLink(Number(page) + 1)">下一页</a>
+      </nav>
+    </template>
+    <template v-else-if="!boardId">
+      <details v-if="account" class="panel" @toggle="$event.currentTarget.open && loadProfile()">
+        <summary class="bar">个人状态 · {{ account }} · {{ unreadMail }} 封未读</summary>
+        <div v-if="profile" class="row">
+          <small>来自 {{ profile.address || '—' }} · 最后访问 {{ formatDate(profile.lastVisit) || '—' }}</small>
+          <div class="profile-grid">
+            <section><h3>我的财产</h3>
+              <div>现金 <b>{{ profile.money }} {{ profile.currency || '雷傲元' }}</b></div>
+              <div>存款 <b>{{ profile.deposit ?? '没开户' }}</b></div>
+              <div>贷款 <b>{{ profile.loan || '没贷款' }}</b></div>
+            </section>
+            <section><h3>我的短消息</h3>
+              <div><button class="profile-link" @click="openMailbox('inbox')">收件箱</button> <b>{{ profile.inbox }}</b></div>
+              <div><button class="profile-link" @click="openMailbox('outbox')">发件箱</button> <b>{{ profile.outbox }}</b></div>
+              <div>条数限制 <b>{{ profile.limit || '没有限制' }}</b></div>
+            </section>
+            <section><h3>我的文章</h3>
+              <div>发表数 <b>{{ profile.posts }}</b></div>
+              <div>回复数 <b>{{ profile.replies }}</b></div>
+              <div>被删数 <b>{{ profile.deleted }}</b></div>
+            </section>
+          </div>
+        </div>
+      </details>
+      <section v-for="category in [...new Set(state.boards.map(board => board.category))]" :key="category" class="panel">
+        <h1 class="bar">◇ {{ category }}</h1>
+        <a v-for="board in state.boards.filter(board => board.category === category)" :key="board.id" :href="boardLink(board.id)" class="row entry">
+          <img :src="img + 'images/leobbs/foldernew.gif'" alt="">
+          <span><b>{{ board.name }}</b><small>{{ board.description }}</small></span>
+          <small class="counts">主题 {{ board.topics }}<br>回复 {{ board.posts }}</small>
+        </a>
+      </section>
+      <p v-if="!state.boards.length" class="panel row">暂无开放的手机版版块</p>
+      <section class="panel">
+        <h2 class="bar">◇ 最新主题</h2>
+        <a v-for="topic in state.latest" :key="topic.boardId + '-' + topic.id" class="row entry" :href="topicLink(topic.boardId, topic.id)">
+          <img :src="img + 'posticons/' + topic.icon + '.gif'" alt="">
+          <span><b>{{ topic.title }}</b><small>{{ topic.author }} · {{ formatDate(topic.updated) }}</small></span>
+        </a>
+        <p v-if="!state.latest.length" class="row">还没有主题</p>
+      </section>
+      <ForumStats :stats="state.stats" />
+    </template>
+    <template v-else>
+      <div class="crumb"><a href="/m/">首页</a> › <a :href="boardLink(boardId)">{{ state.board.name }}</a><template v-if="topicId"> › 帖子详情</template></div>
+      <section v-if="!topicId" class="panel">
+        <div class="bar heading"><h1>{{ state.board.name }}</h1><button class="button" :disabled="checkingAccount" @click="openForm('addnew')"><img :src="img + 'images/edit.gif'" alt="">发帖</button></div>
+        <p v-if="state.board.description" class="row intro">{{ state.board.description }}</p>
+        <a v-for="topic in state.items" :key="topic.id" class="row entry" :href="topicLink(boardId, topic.id)">
+          <img :src="img + 'posticons/' + topic.icon + '.gif'" alt="">
+          <span><b>{{ topic.title }}</b><small>{{ topic.author }} · 回复 {{ topic.replies }} · {{ formatDate(topic.updated) }}</small></span>
+        </a>
+        <p v-if="!state.items.length" class="row">这一页没有主题</p>
+      </section>
+      <template v-else>
+        <h1 class="bar panel">{{ state.topic.title }}</h1>
+        <article v-for="post in state.items" :key="post.floor" class="panel post">
+          <header class="byline">
+            <strong>{{ post.author }}</strong><small>{{ formatDate(post.created) }}</small>
+            <b>{{ post.floor === 1 ? '楼主' : post.floor + ' 楼' }}</b>
+          </header>
+          <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><template v-else><component :is="token.tag" v-for="(token, index) in (post.ubb ? ubbTokens(post.body) : [{tag: 'span', text: post.body}])" :key="index">{{ token.text }}</component></template></div>
+        </article>
+        <div class="actions">
+          <a :href="desktopTopic">经典版帖子</a>
+          <button v-if="!['closed', 'pollclosed'].includes(state.topic.state)" class="button" :disabled="checkingAccount" @click="openForm('addreply')"><img :src="img + 'images/replynow.gif'" alt="">回复</button>
+        </div>
+      </template>
+      <nav v-if="state.pages > 1 || page > 1" class="panel pager" aria-label="分页">
+        <a v-if="page > 1" class="button" :href="pageLink(page - 1)">上一页</a>
+        <span>{{ page }} / {{ state.pages }}</span>
+        <a v-if="page < state.pages" class="button" :href="pageLink(Number(page) + 1)">下一页</a>
+      </nav>
+    </template>
+  </main>
+  <footer>LeoBBS · 雷傲科技</footer>
+</template>

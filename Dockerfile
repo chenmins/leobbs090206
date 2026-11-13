@@ -1,8 +1,18 @@
-FROM debian:bullseye-slim
+ARG LEO_BBS_BASE_IMAGE=debian:trixie-slim
+ARG LEO_BBS_NODE_IMAGE=node:22-bookworm-slim
+FROM ${LEO_BBS_NODE_IMAGE} AS mobile-web
+WORKDIR /app
+COPY mobile/web/package*.json ./
+RUN npm ci
+COPY mobile/web/ ./
+RUN npm run build
+
+FROM ${LEO_BBS_BASE_IMAGE}
 
 # Install Apache, Perl and required modules
-RUN apt-get update && apt-get install -y \
+RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 install -y \
     apache2 \
+    tzdata \
     perl \
     libcgi-pm-perl \
     libgd-perl \
@@ -14,11 +24,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache CGI and rewrite modules
-RUN a2enmod cgi cgid rewrite
+RUN a2enmod cgi cgid rewrite headers deflate
 
 # Configure Apache for LeoBBS
 RUN echo '<VirtualHost *:80>\n\
     ServerAdmin webmaster@localhost\n\
+    RewriteEngine On\n\
+    RewriteOptions Inherit\n\
+
     DocumentRoot /var/www/html\n\
 \n\
     ScriptAlias /cgi-bin/ /var/www/html/cgi-bin/\n\
@@ -43,6 +56,10 @@ RUN echo '<VirtualHost *:80>\n\
 # Copy forum files
 COPY cgi-bin /var/www/html/cgi-bin
 COPY non-cgi /var/www/html/non-cgi
+COPY --from=mobile-web /app/dist/ /var/www/html/m/
+COPY --chmod=755 mobile/api/index.cgi /opt/leobbs-mobile/index.cgi
+COPY mobile/api/apache.conf /etc/apache2/conf-available/leobbs-mobile.conf
+RUN a2enconf leobbs-mobile
 
 # Copy .htaccess for URL rewriting (伪静态)
 COPY addon/.htaccess /var/www/html/cgi-bin/.htaccess

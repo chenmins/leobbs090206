@@ -61,6 +61,30 @@ if ($inmembername eq "" || $inmembername eq "客人" ) {
     &getmember("$inmembername","no");
     &error("普通错误&此用户根本不存在！") if ($inpassword ne "" && $userregistered eq "no");
     &error("普通错误&密码与用户名不相符，请重新登录！") if ($inpassword ne $password && $userregistered ne "no");
+    if ($action eq "mobilelist") {
+        print "Cache-Control: no-store\r\n";
+        if ($userregistered eq "no" || $inpassword eq "" || $inpassword ne $password) {
+            print "Status: 401 Unauthorized\r\nContent-Type: application/json\r\n\r\n{}";
+            exit;
+        }
+        require JSON::PP;
+        require Encode;
+        my $owner = lc $inmembername;
+        $owner =~ s/ /_/g;
+        my @names;
+        if (open(my $list, "<:raw", "${lbdir}memblock/$owner.cgi")) {
+            flock($list, 1) if $OS_USED eq "Unix";
+            while (my $name = <$list>) {
+                $name =~ s/\r?\n\z//;
+                $name =~ s/^＊＃！＆＊//;
+                push @names, Encode::decode("cp936", $name) if length $name;
+            }
+            close($list);
+        }
+        print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+        print JSON::PP->new->utf8->encode({names => \@names});
+        exit;
+    }
     &action;
 }
 

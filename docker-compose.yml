@@ -1,16 +1,17 @@
-version: '3.8'
-
 services:
   leobbs:
-    build: .
+    build:
+      context: .
+      args:
+        LEO_BBS_NODE_IMAGE: ${LEO_BBS_NODE_IMAGE:-node:22-bookworm-slim}
+        LEO_BBS_BASE_IMAGE: ${LEO_BBS_BASE_IMAGE:-debian:trixie-slim}
     container_name: leobbs-forum
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     environment:
       - TZ=Asia/Shanghai
+      - LEOBBS_MOBILE_PUBLIC_BOARDS=${LEOBBS_MOBILE_PUBLIC_BOARDS:-1}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
       - ./persist/cgi-bin:/var/www/html/cgi-bin
       - ./persist/non-cgi:/var/www/html/non-cgi
     restart: unless-stopped
