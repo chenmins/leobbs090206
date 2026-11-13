@@ -24,11 +24,14 @@ RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 instal
     && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache CGI and rewrite modules
-RUN a2enmod cgi cgid rewrite
+RUN a2enmod cgi cgid rewrite headers
 
 # Configure Apache for LeoBBS
 RUN echo '<VirtualHost *:80>\n\
     ServerAdmin webmaster@localhost\n\
+    RewriteEngine On\n\
+    RewriteOptions Inherit\n\
+
     DocumentRoot /var/www/html\n\
 \n\
     ScriptAlias /cgi-bin/ /var/www/html/cgi-bin/\n\
