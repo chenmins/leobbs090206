@@ -29,11 +29,13 @@ RUN a2enmod cgi cgid rewrite headers deflate
 # Configure Apache for LeoBBS
 RUN echo '<VirtualHost *:80>\n\
     ServerAdmin webmaster@localhost\n\
-    RewriteEngine On\n\
-    RewriteOptions Inherit\n\
 
     DocumentRoot /var/www/html\n\
 \n\
+    RewriteEngine On\n\
+    RewriteRule ^/?cgi-bin/leobbs\.htm$ /cgi-bin/leobbs.cgi [PT,L]\n\
+    RewriteRule ^/?cgi-bin/forums-([0-9]+)-([0-9]+)\.htm$ /cgi-bin/forums.cgi?forum=$1&show=$2 [PT,L]\n\
+    RewriteRule ^/?cgi-bin/topic-([0-9]+)-([0-9]+)-0-0-\.htm$ /cgi-bin/topic.cgi?forum=$1&topic=$2&start=0&show=0 [PT,L]\n\
     ScriptAlias /cgi-bin/ /var/www/html/cgi-bin/\n\
 \n\
     <Directory /var/www/html>\n\
@@ -57,6 +59,7 @@ RUN echo '<VirtualHost *:80>\n\
 COPY cgi-bin /var/www/html/cgi-bin
 COPY non-cgi /var/www/html/non-cgi
 COPY --from=mobile-web /app/dist/ /var/www/html/m/
+COPY --chmod=755 seo/index.cgi /opt/leobbs-seo/index.cgi
 COPY --chmod=755 mobile/api/index.cgi /opt/leobbs-mobile/index.cgi
 COPY mobile/api/apache.conf /etc/apache2/conf-available/leobbs-mobile.conf
 RUN a2enconf leobbs-mobile

@@ -10,6 +10,7 @@ services:
       - "127.0.0.1:8080:80"
     environment:
       - TZ=Asia/Shanghai
+      - LEOBBS_PUBLIC_ORIGIN
       - LEOBBS_MOBILE_PUBLIC_BOARDS=${LEOBBS_MOBILE_PUBLIC_BOARDS:-1}
     volumes:
       - ./persist/cgi-bin:/var/www/html/cgi-bin

@@ -155,3 +155,9 @@ docker compose up -d --build
 ```
 
 本地测试版块命名为「站务公告区」时，可运行 `python3 mobile/tests/smoke.py`。如果版块已有主题，检查也会读取首个主题及其楼层。
+
+### 搜索引擎抓取
+
+Apache 镜像提供动态的 `/robots.txt` 和 `/sitemap.xml`。通过 Caddy 发布时，在 Compose 环境中把 `LEOBBS_PUBLIC_ORIGIN` 设置为浏览器使用的公网源地址，例如 `https://forum.example.com`。未设置时使用安装配置中的论坛地址。首页用相对 Location 跳转，HTTPS 由 Caddy 负责。
+
+站点地图使用经典版的伪静态地址。镜像启用 Apache 重写，即使已有持久化目录没有新版重写文件，站点地图中的三类地址也可解析。地图每次按当前数据生成。具有独立配置的版块、子版块及带访问控制标记的帖子暂不列入。
