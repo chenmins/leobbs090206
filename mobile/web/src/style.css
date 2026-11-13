@@ -117,3 +117,6 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .post-actions img{width:16px;height:16px;object-fit:contain}
 
 .submit-icon{width:16px;height:16px;object-fit:contain;margin-right:5px}
+.editor-switch{margin-bottom:8px}
+.sc-editor{margin-bottom:8px;min-width:0}
+.sc-editor .sceditor-container{max-width:100%;box-sizing:border-box}

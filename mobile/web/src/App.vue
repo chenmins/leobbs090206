@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import ForumStats from './ForumStats.vue'
 import Mailbox from './Mailbox.vue'
 import UbbBody from './ubb.js'
@@ -130,6 +130,12 @@ async function prepareRegistration() {
   }
 }
 
+function scrollToComposer() {
+  if (mode.value === 'addreply') {
+    nextTick(() => document.getElementById('reply-composer')?.scrollIntoView({block: 'start'}))
+  } else if (mode.value) window.scrollTo(0, 0)
+}
+
 function openForm(nextMode) {
   pendingAction.value = !account.value && ['addnew', 'addreply'].includes(nextMode) ? nextMode : ''
   mode.value = pendingAction.value ? 'login' : nextMode
@@ -138,7 +144,7 @@ function openForm(nextMode) {
     agreed.value = false
     prepareRegistration()
   }
-  if (nextMode) window.scrollTo(0, 0)
+  scrollToComposer()
 }
 
 const editFields = ref(null)
@@ -184,6 +190,11 @@ async function submit() {
   const action = mode.value
   const login = action === 'login'
   const registering = action === 'register'
+  if (['addnew', 'addreply', 'processedit'].includes(action) && (!body.value.trim() || body.value.length > 8000)) {
+    formError.value = '请填写正文，最多 8000 个字符。'
+    busy.value = false
+    return
+  }
   if (registering && (!registrationReady.value || !agreed.value || password.value !== confirmation.value)) {
     formError.value = '请确认两次密码一致，并同意注册条款。'
     busy.value = false
@@ -231,6 +242,7 @@ async function submit() {
       password.value = ''
       if (!account.value) throw new Error('登录状态未生效，请重试')
       mode.value = pendingAction.value
+      scrollToComposer()
       pendingAction.value = ''
       formError.value = ''
     } else {
@@ -451,6 +463,7 @@ onUnmounted(() => {
   <main>
     <Mailbox v-if="account && showMailbox" :key="mailboxKey" :initial-box="initialMailbox" @read="refreshUnreadMail" />
     <p v-if="notice" class="panel row" role="status">{{ notice }}</p>
+    <Teleport defer to="#reply-composer" :disabled="mode !== 'addreply'">
     <form v-if="mode" class="panel compose" @submit.prevent="submit">
       <h2 class="bar">{{ {login: '登录', register: '注册', addnew: '发表主题', addreply: '回复', processedit: '编辑帖子'}[mode] }}</h2>
       <div class="row">
@@ -473,8 +486,7 @@ onUnmounted(() => {
         </template>
         <template v-else>
           <label v-if="mode === 'addnew' || (mode === 'processedit' && editingTitle)">标题<input v-model.trim="title" maxlength="80" required></label>
-          <UbbEditor v-model="body" :enabled="useUbb" />
-          <label><input v-model="useUbb" type="checkbox">启用 UBB</label>
+          <UbbEditor v-model="body" v-model:enabled="useUbb" />
         </template>
         <p v-if="formError" role="alert">{{ formError }}</p>
         <button :disabled="busy || (mode === 'register' && !registrationReady)"><img v-if="['addnew', 'addreply', 'processedit'].includes(mode)" class="submit-icon" :src="img + 'images/yes.gif'" alt="">{{ busy ? '提交中…' : '提交' }}</button>
@@ -482,6 +494,7 @@ onUnmounted(() => {
         <button v-if="mode === 'login'" type="button" :disabled="busy" @click="openForm('register')">注册</button>
       </div>
     </form>
+    </Teleport>
     <section v-if="searching" class="panel">
       <h1 class="bar">搜索帖子</h1>
       <form class="row search-form" action="/m/search" @submit.prevent="submitSearch">
@@ -659,6 +672,7 @@ onUnmounted(() => {
         <a v-if="page < state.pages" class="button" :href="pageLink(Number(page) + 1)">下一页</a>
       </nav>
     </template>
+    <div id="reply-composer"></div>
   </main>
   <footer>LeoBBS · 雷傲科技</footer>
 </template>
