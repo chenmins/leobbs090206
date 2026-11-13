@@ -7,7 +7,15 @@ const error = ref('')
 const route = ref([])
 let request
 
-const boardId = computed(() => route.value[0])
+const searching = computed(() => route.value[0] === 'search')
+const searchTerm = ref(new URLSearchParams(location.search).get('q') || '')
+const searchDraft = ref(searchTerm.value)
+const boardId = computed(() => searching.value ? '' : route.value[0])
+function submitSearch(event) {
+  const query = String(new FormData(event.currentTarget).get('q') || '').trim()
+  if (query) location.assign('/m/search?' + new URLSearchParams({q: query}))
+}
+const searchLink = index => '/m/search?' + new URLSearchParams({q: searchTerm.value, page: index})
 const topicId = computed(() => route.value[1])
 const page = computed(() => new URLSearchParams(location.search).get('page') || 1)
 const boardLink = id => '/m/' + id
@@ -20,7 +28,9 @@ const formatDate = value => value ? date.format(value * 1000) : ''
 const desktopTopic = computed(() => legacy + 'topic.cgi?forum=' + boardId.value + '&topic=' + topicId.value)
 
 const mode = ref('')
-const account = ref(sessionStorage.getItem('leo-account') || '')
+const pendingAction = ref('')
+const account = ref('')
+const checkingAccount = ref(true)
 const username = ref('')
 const password = ref('')
 const title = ref('')
@@ -30,8 +40,9 @@ const formError = ref('')
 const busy = ref(false)
 
 function openForm(nextMode) {
-  mode.value = nextMode
-  formError.value = ''
+  pendingAction.value = !account.value && ['addnew', 'addreply'].includes(nextMode) ? nextMode : ''
+  mode.value = pendingAction.value ? 'login' : nextMode
+  formError.value = pendingAction.value ? '请先登录，再发帖或回复。' : ''
   if (nextMode) window.scrollTo(0, 0)
 }
 
@@ -58,10 +69,12 @@ async function submit() {
     const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
     if (login) {
       if (!response.ok || !html.includes('感谢你登录')) throw new Error('登录失败，请核对用户名和密码')
-      account.value = username.value
-      sessionStorage.setItem('leo-account', account.value)
+      await refreshAccount()
       password.value = ''
-      mode.value = ''
+      if (!account.value) throw new Error('登录状态未生效，请重试')
+      mode.value = pendingAction.value
+      pendingAction.value = ''
+      formError.value = ''
     } else {
       if (!response.ok || !/(新主题发表成功|回复成功)/.test(html)) {
         const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -79,10 +92,22 @@ async function submit() {
   }
 }
 
+async function refreshAccount() {
+  checkingAccount.value = true
+  try {
+    const response = await fetch(legacy + 'loginout.cgi?action=mobilestatus', {cache: 'no-store'})
+    const text = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    account.value = response.ok ? text.match(/^LEOBBS_MEMBER:([^\r\n]+)$/)?.[1] || '' : ''
+  } catch {
+    account.value = ''
+  } finally {
+    checkingAccount.value = false
+  }
+}
+
 async function logout() {
   await fetch(legacy + 'loginout.cgi?action=logout')
-  account.value = ''
-  sessionStorage.removeItem('leo-account')
+  await refreshAccount()
 }
 
 async function load() {
@@ -101,11 +126,15 @@ async function load() {
   state.value = null
   error.value = ''
   window.scrollTo(0, 0)
-  const path = boardId.value
+  if (searching.value && !searchTerm.value.trim()) {
+    state.value = {items: [], pages: 1}
+    return
+  }
+  const path = searching.value ? '/search' : boardId.value
     ? '/boards/' + encodeURIComponent(boardId.value) + (topicId.value ? '/topics/' + encodeURIComponent(topicId.value) : '')
     : '/home'
   try {
-    const response = await fetch('/api/v1' + path + '?page=' + page.value, {signal: controller.signal})
+    const response = await fetch('/api/v1' + path + '?' + new URLSearchParams({page: page.value, ...(searching.value ? {q: searchTerm.value} : {})}), {signal: controller.signal})
     const data = await response.json()
     if (!response.ok) throw new Error(data.error)
     if (!controller.signal.aborted) state.value = data
@@ -114,6 +143,7 @@ async function load() {
   }
 }
 onMounted(() => {
+  refreshAccount()
   load()
 })
 onUnmounted(() => {
@@ -128,11 +158,12 @@ onUnmounted(() => {
       <strong>雷傲极酷超级论坛</strong>
     </div>
     <nav aria-label="论坛导航">
-      <a href="/m/"><img :src="img + 'images/gohome.gif'" alt="">首页</a>
-      <a :href="legacy + 'search.cgi'">搜索</a>
-      <button v-if="!account" class="nav-action" @click="openForm('login')">登录</button>
-      <button v-else class="nav-action" @click="logout">退出 {{ account }}</button>
+      <a href="/m/" class="home-icon" aria-label="首页" title="首页"><img :src="img + 'images/homepage.gif'" alt="">首页</a>
+      <a href="/m/search">搜索</a>
       <a :href="legacy + 'leobbs.htm'">桌面版</a>
+      <span v-if="checkingAccount" class="nav-action" role="status">检测中…</span>
+      <button v-else-if="!account" class="nav-action" @click="openForm('login')">登录</button>
+      <button v-else class="nav-action" @click="logout">退出 {{ account }}</button>
     </nav>
   </header>
 
@@ -154,8 +185,31 @@ onUnmounted(() => {
         <button type="button" :disabled="busy" @click="openForm('')">取消</button>
       </div>
     </form>
+    <section v-if="searching" class="panel">
+      <h1 class="bar">搜索帖子</h1>
+      <form class="row search-form" action="/m/search" @submit.prevent="submitSearch">
+        <label for="search-title">帖子标题</label>
+        <input id="search-title" v-model="searchDraft" name="q" type="search" maxlength="80" required>
+        <button type="submit">搜索</button>
+      </form>
+    </section>
     <p v-if="error" role="alert" class="panel row">{{ error }} <button @click="load">重试</button></p>
     <p v-else-if="!state" role="status" class="panel row">正在读取论坛…</p>
+    <template v-else-if="searching">
+      <section v-if="searchTerm.trim()" class="panel">
+        <h2 class="bar">搜索结果</h2>
+        <a v-for="topic in state.items" :key="topic.boardId + '-' + topic.id" class="row entry" :href="topicLink(topic.boardId, topic.id)">
+          <img :src="img + 'posticons/' + topic.icon + '.gif'" alt="">
+          <span><b>{{ topic.title }}</b><small>{{ topic.boardName }} · {{ topic.author }} · {{ formatDate(topic.updated) }}</small></span>
+        </a>
+        <p v-if="!state.items.length" class="row">没有找到匹配的帖子</p>
+      </section>
+      <nav v-if="state.pages > 1 || page > 1" class="panel pager" aria-label="搜索分页">
+        <a v-if="page > 1" class="button" :href="searchLink(Number(page) - 1)">上一页</a>
+        <span>{{ page }} / {{ state.pages }}</span>
+        <a v-if="page < state.pages" class="button" :href="searchLink(Number(page) + 1)">下一页</a>
+      </nav>
+    </template>
     <template v-else-if="!boardId">
       <section v-for="category in [...new Set(state.boards.map(board => board.category))]" :key="category" class="panel">
         <h1 class="bar">◇ {{ category }}</h1>
@@ -178,7 +232,7 @@ onUnmounted(() => {
     <template v-else>
       <div class="crumb"><a href="/m/">首页</a> › <a :href="boardLink(boardId)">{{ state.board.name }}</a><template v-if="topicId"> › 帖子详情</template></div>
       <section v-if="!topicId" class="panel">
-        <div class="bar heading"><h1>{{ state.board.name }}</h1><button class="button" @click="openForm('addnew')"><img :src="img + 'images/edit.gif'" alt="">发帖</button></div>
+        <div class="bar heading"><h1>{{ state.board.name }}</h1><button class="button" :disabled="checkingAccount" @click="openForm('addnew')"><img :src="img + 'images/edit.gif'" alt="">发帖</button></div>
         <p v-if="state.board.description" class="row intro">{{ state.board.description }}</p>
         <a v-for="topic in state.items" :key="topic.id" class="row entry" :href="topicLink(boardId, topic.id)">
           <img :src="img + 'posticons/' + topic.icon + '.gif'" alt="">
@@ -197,13 +251,13 @@ onUnmounted(() => {
         </article>
         <div class="actions">
           <a :href="desktopTopic">经典版帖子</a>
-          <button v-if="!['closed', 'pollclosed'].includes(state.topic.state)" class="button" @click="openForm('addreply')"><img :src="img + 'images/replynow.gif'" alt="">回复</button>
+          <button v-if="!['closed', 'pollclosed'].includes(state.topic.state)" class="button" :disabled="checkingAccount" @click="openForm('addreply')"><img :src="img + 'images/replynow.gif'" alt="">回复</button>
         </div>
       </template>
       <nav v-if="state.pages > 1 || page > 1" class="panel pager" aria-label="分页">
         <a v-if="page > 1" class="button" :href="pageLink(page - 1)">上一页</a>
         <span>{{ page }} / {{ state.pages }}</span>
-        <a v-if="page < state.pages" class="button" :href="pageLink(page + 1)">下一页</a>
+        <a v-if="page < state.pages" class="button" :href="pageLink(Number(page) + 1)">下一页</a>
       </nav>
     </template>
   </main>

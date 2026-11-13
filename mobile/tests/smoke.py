@@ -3,6 +3,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from urllib.parse import urlencode
 
 root = os.environ.get("LEOBBS_URL", "http://127.0.0.1:8080")
 
@@ -38,4 +39,14 @@ get("/api/v1/boards/1?page=-1", 400)
 for path in ("/m/", f'/m/{board["id"]}', f'/m/{board["id"]}/1?page=2'):
     _, body = get(path)
     assert b'id="app"' in body
+
+get("/api/v1/search", 400)
+_, body = get("/api/v1/search?" + urlencode({"q": "无匹配标题-9e0d0f29"}))
+assert json.loads(body)["items"] == []
+if listing["items"]:
+    _, body = get("/api/v1/search?" + urlencode({"q": listing["items"][0]["title"]}))
+    assert any(item["boardId"] == board["id"] for item in json.loads(body)["items"])
+_, body = get("/m/search")
+assert b'id="app"' in body
+
 print("Mobile HTTP smoke checks passed")

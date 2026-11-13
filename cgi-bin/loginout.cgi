@@ -87,6 +87,12 @@ else {
 $memberfilename = $inmembername;
 $memberfilename =~ s/ /\_/g;
 $memberfilename =~ tr/A-Z/a-z/;
+# Report the member only after the existing cookie validation above.
+if ($action eq "mobilestatus") {
+    print "Content-Type: text/plain; charset=gb2312\r\nCache-Control: no-store\r\n\r\n";
+    print "LEOBBS_MEMBER:$membername" if $userregistered ne "no" && $membername ne "";
+    exit;
+}
 &getoneforum("$inforum");
 #&moderator("$inforum");
 #&title;

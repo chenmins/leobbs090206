@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use utf8;
+use feature 'fc';
 use CGI;
 use Encode qw(decode encode FB_CROAK);
 use HTML::Entities qw(decode_entities);
@@ -121,6 +122,23 @@ sub dispatch {
     my $path = $ENV{PATH_INFO} // '';
     my $index = $query->param('page') // 1;
     send_json('400 Bad Request', {error => '页码无效'}) unless $index =~ /\A[1-9][0-9]{0,5}\z/;
+    if ($path eq '/search') {
+        my $raw = scalar $query->param('q') // '';
+        my $term = eval { decode('UTF-8', $raw, FB_CROAK) };
+        send_json('400 Bad Request', {error => '请输入 1 至 80 个字符'})
+            unless defined $term && $term =~ /\S/ && length($term) <= 80;
+        $term =~ s/^\s+|\s+$//g;
+        $term = fc($term);
+        my @matches;
+        for my $id (keys %enabled) {
+            my $board = board($id) or next;
+            push @matches, map { +{%$_, boardId => $board->{id}, boardName => $board->{name}} }
+                grep { index(fc($_->{title}), $term) >= 0 } topics($id);
+        }
+        @matches = sort { $b->{updated} <=> $a->{updated} || $a->{boardId} <=> $b->{boardId}
+            || $a->{id} <=> $b->{id} } @matches;
+        send_json('200 OK', page($index, @matches));
+    }
     if ($path eq '/home') {
         my @boards = grep { defined } map { board($_) } sort { $a <=> $b } keys %enabled;
         my @latest = sort { $b->{updated} <=> $a->{updated} } map {

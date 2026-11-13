@@ -42,3 +42,9 @@ nav img,.button img{width:16px;height:16px;object-fit:contain}
 .compose button+button{margin-left:8px}
 .compose [role=alert]{margin-bottom:8px;color:#8d1919}
 .body blockquote,.body pre{margin:8px 0;padding:8px;border-left:3px solid var(--border);background:var(--pale);white-space:pre-wrap}
+
+.nav-action{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.search-form label{grid-column:1/-1}
+.search-form input{min-width:0;padding:8px;border:1px solid var(--border);font:inherit}
+nav .home-icon{min-width:44px;justify-content:center}
