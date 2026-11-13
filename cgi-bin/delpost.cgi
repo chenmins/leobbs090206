@@ -118,8 +118,11 @@ if ($action eq "mobilepermissions") {
         while (my $row = <$posts>) {
             my ($author) = split /\t/, $row, 2;
             ++$floor;
-            $allowed{$floor} = 1 if $moderator || ($arrowuserdel eq "on"
-                && lc($author) eq lc($inmembername));
+            my $owner = lc($author) eq lc($inmembername);
+            my $can_edit = $moderator || $inmembmod eq "yes" || ($owner && $usereditpost ne "no");
+            my $can_delete = $moderator || ($owner && $arrowuserdel eq "on");
+            $allowed{$floor} = { canEdit => $can_edit ? 1 : 0, canDelete => $can_delete ? 1 : 0 }
+                if $can_edit || $can_delete;
         }
         close $posts;
     }

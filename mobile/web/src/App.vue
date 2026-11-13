@@ -294,34 +294,21 @@ async function loadPostActions() {
   postActions.value = {}
   if (!account.value || !topicId.value || !state.value?.topic) return
   try {
-    const response = await fetch(desktopTopic.value, {cache: 'no-store'})
-    if (!response.ok) return
-    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
-    if (sequence !== actionRequest || !account.value) return
-    const classic = new DOMParser().parseFromString(html, 'text/html')
-    const actions = {}
-    for (const anchor of classic.querySelectorAll('a[href]')) {
-      const url = new URL(anchor.getAttribute('href'), location.origin + desktopTopic.value)
-      const type = url.pathname === '/cgi-bin/editpost.cgi' && url.searchParams.get('action') === 'edit'
-        ? 'edit' : url.pathname === '/cgi-bin/delpost.cgi' && url.searchParams.get('action') === 'directdel'
-          ? 'delete' : ''
-      const image = anchor.querySelector('img')
-      const control = type === 'edit' ? 'edit.gif' : 'del.gif'
-      if (!image?.getAttribute('src')?.endsWith('/images/' + control)) continue
-      const floor = url.searchParams.get('postno')
-      if (!type || !/^[1-9][0-9]*$/.test(floor || '') || url.origin !== location.origin ||
-        url.searchParams.get('forum') !== boardId.value || url.searchParams.get('topic') !== topicId.value) continue
-      const path = url.pathname + '?' + new URLSearchParams({
-        action: type === 'edit' ? 'edit' : 'directdel', forum: boardId.value, topic: topicId.value, postno: floor,
-      })
-      ;(actions[floor] ||= {})[type] = path
-    }
-    const permissions = await fetch(legacy + 'delpost.cgi?' + new URLSearchParams({
-      action: 'mobilepermissions', forum: boardId.value, topic: topicId.value,
+    const target = {forum: boardId.value, topic: topicId.value}
+    const response = await fetch(legacy + 'delpost.cgi?' + new URLSearchParams({
+      action: 'mobilepermissions', ...target,
     }), {cache: 'no-store'})
-    if (permissions.ok) {
-      const allowed = await permissions.json().catch(() => ({}))
-      for (const floor of Object.keys(allowed)) (actions[floor] ||= {}).remove = true
+    if (!response.ok) return
+    const allowed = await response.json()
+    const actions = {}
+    for (const [floor, permissions] of Object.entries(allowed)) {
+      if (!/^[1-9][0-9]*$/.test(floor)) continue
+      actions[floor] = {
+        edit: permissions.canEdit ? legacy + 'editpost.cgi?' + new URLSearchParams({
+          action: 'edit', ...target, postno: floor,
+        }) : '',
+        remove: permissions.canDelete === 1 || permissions === 1,
+      }
     }
     if (sequence === actionRequest && account.value) postActions.value = actions
   } catch {
