@@ -146,6 +146,67 @@ sub forum_stats {
         onlinePeak => 0 + ($onlinePeak || 0), onlinePeakAt => 0 + ($onlinePeakAt || 0), birthdays => ($birthday_date // '') =~ /^#\Q$current\E/ ? 0 + ($birthdays || 0) : 0};
 }
 
+sub classic_settings {
+    my %values;
+    for my $file (@_) {
+        for my $row (rows($file)) {
+            $values{$1} = $3 if $row =~ /^\s*\$(\w+)\s*=\s*(["'])(.*?)\2\s*;/;
+        }
+    }
+    return \%values;
+}
+
+sub author_profile {
+    my ($raw, $settings, $directories, $online) = @_;
+    my $name = lc $raw;
+    $name =~ tr/ /_/;
+    return unless $name =~ /\A[^.\/\\\x00-\x1f]{2,32}\z/;
+    my $bucket = ((ord(substr($name,0,1)) & 0x3c) << 3) | ((ord(substr($name,1,1)) & 0x7c) >> 2);
+    for my $directory (@$directories) {
+        for my $folder ($bucket, 'old') {
+            my ($row) = rows("$directory/$folder/$name.cgi");
+            next unless defined $row;
+            my @f = fields($row);
+            my $stored = lc($f[0] // '');
+            $stored =~ tr/ /_/;
+            next unless $stored eq $name && @f > 44;
+            my $role = $f[3];
+            my %roles = (ad => ['admin', '论坛坛主', 'teamad'], smo => ['smo', '论坛总版主', 'teamsmo'],
+                cmo => ['cmo', '分类区版主', 'teamcmo'], mo => ['team', '论坛版主', 'teammo'],
+                amo => ['amo', '论坛副版主', 'teamamo']);
+            my ($color_key, $role_label, $icon) = @{$roles{$role} || [$role =~ /^rz/ ? 'rz' : 'poster', '普通会员', '']};
+            my $color = $settings->{$color_key . 'namecolor'} // '';
+            $color = '' unless $color =~ /\A#[0-9a-f]{6}\z/i;
+            my ($posts, $replies) = split /\|/, $f[4];
+            my ($bank, $deposit, undef, $loan) = split /,/, $f[40];
+            my $rank = 0;
+            for my $level (1..19, 'max') {
+                $rank = $level if defined $settings->{"mpostmark$level"} && ($f[44] || 0) >= $settings->{"mpostmark$level"};
+            }
+            my $level = $settings->{"mtitle$rank"};
+            my $badge = $settings->{"mgraphic$rank"};
+            if ($role eq 'ad') {
+                $level = $settings->{adtitle} || $level;
+                $badge = $settings->{admingraphic} || $badge;
+            }
+            my $cash = ($posts || 0) * ($settings->{addmoney} || 0)
+                + ($replies || 0) * ($settings->{replymoney} || 0)
+                + ($f[27] || 0) * ($settings->{loginmoney} || 0) + ($f[30] || 0)
+                - ($f[31] || 0) * ($settings->{delmoney} || 0) + ($f[39] || 0) * ($settings->{addjhhb} || 0);
+            return {title => $f[2] && lc($f[2]) ne 'member' ? text($f[2]) : $role_label,
+                level => text($level), badge => ($badge // '') =~ /\A[\w-]+\.gif\z/ ? $badge : '',
+                color => $color, roleIcon => $icon, online => $online->{lc $raw} ? 1 : 0,
+                reputation => 0 + ($f[25] || 0), points => 0 + ($f[44] || 0), cash => $cash,
+                currency => text($settings->{moneyname}), deposit => ($bank // '') =~ /\A-?1\z/ ? 0 + ($deposit || 0) : undef,
+                loan => ($bank // '') =~ /\A-?1\z/ ? 0 + ($loan || 0) : 0,
+                location => text($f[11]), flag => $f[19] =~ /\A[\w-]+\z/ ? $f[19] : 'blank',
+                posts => 0 + ($posts || 0) + ($replies || 0), featured => 0 + ($f[39] || 0),
+                onlineSeconds => 0 + ($f[41] || 0), joined => 0 + ($f[13] || 0), lastVisit => 0 + ($f[26] || 0)};
+        }
+    }
+    return;
+}
+
 sub dispatch {
     if (($ENV{PATH_INFO} // '') eq '/legacy-form' && $query->request_method eq 'POST') {
         send_json('413 Payload Too Large', {error => '表单太长'}) if $query->cgi_error;
@@ -248,10 +309,31 @@ sub dispatch {
             push @posts, {author => text($f[0]), created => 0 + ($f[5] || 0),
                 body => $desktop_only ? '' : $body, ubb => $ubb_disabled ? JSON::PP::false : JSON::PP::true,
                 desktopOnly => $desktop_only ? JSON::PP::true : JSON::PP::false,
-                floor => 1 + @posts};
+                floor => 1 + @posts, rawAuthor => $f[0]};
         }
         send_json('404 Not Found', {error => '主题不存在'}) unless @posts;
-        send_json('200 OK', {board => $board, topic => $topic, %{page($index, @posts)}});
+        my $result = page($index, @posts);
+        my $settings = classic_settings('data/styles.cgi', 'data/skin/leobbs.cgi',
+            'data/membertitles.cgi', 'data/cityinfo.cgi');
+        opendir(my $root_dir, $root) or die "Cannot read forum directory";
+        my @members = sort { length($b) <=> length($a) }
+            grep { /^members[[:alnum:]_]*$/ && -d "$root/$_" } readdir($root_dir);
+        closedir($root_dir);
+        my %online;
+        for my $row (rows('data/onlinedata.cgi')) {
+            my ($name, undef, $seen, undef, undef, undef, undef, undef, undef, $role, $hidden) = fields($row);
+            $name =~ s/_/ /g;
+            $online{lc $name} = 1 if defined $role && ($hidden // '') ne '1'
+                && ($seen // '') =~ /^\d+$/ && $seen >= time - 900;
+        }
+        my %profiles;
+        for my $post (@{$result->{items}}) {
+            my $raw = delete $post->{rawAuthor};
+            $profiles{$raw} = author_profile($raw, $settings, \@members, \%online)
+                unless exists $profiles{$raw};
+            $post->{profile} = $profiles{$raw};
+        }
+        send_json('200 OK', {board => $board, topic => $topic, %$result});
     }
     send_json('404 Not Found', {error => '接口不存在'});
 }

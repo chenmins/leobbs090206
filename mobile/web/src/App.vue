@@ -5,6 +5,9 @@ import Mailbox from './Mailbox.vue'
 import { ubbTokens } from './ubb.js'
 
 const state = ref(null)
+const authorFloor = ref(null)
+const onlineDuration = seconds => [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+  .map(value => String(value).padStart(2, '0')).join(':')
 const error = ref('')
 const route = ref([])
 let request
@@ -261,13 +264,19 @@ async function load() {
     if (!controller.signal.aborted) error.value = failure.message || '暂时无法读取论坛'
   }
 }
+function closeAuthorCard() {
+  authorFloor.value = null
+}
+
 onMounted(() => {
+  document.addEventListener('click', closeAuthorCard)
   refreshAccount()
   mailTimer = window.setInterval(refreshUnreadMail, 30000)
   window.addEventListener('focus', refreshUnreadMail)
   load()
 })
 onUnmounted(() => {
+  document.removeEventListener('click', closeAuthorCard)
   window.clearInterval(mailTimer)
   window.removeEventListener('focus', refreshUnreadMail)
   request?.abort()
@@ -445,9 +454,42 @@ onUnmounted(() => {
         <h1 class="bar panel">{{ state.topic.title }}</h1>
         <article v-for="post in state.items" :key="post.floor" class="panel post">
           <header class="byline">
-            <strong>{{ post.author }}</strong><small>{{ formatDate(post.created) }}</small>
+            <button type="button" class="author-toggle" :style="{color: post.profile?.color || undefined}" :aria-expanded="authorFloor === post.floor"
+              :aria-controls="'author-card-' + post.floor"
+              @click.stop="authorFloor = authorFloor === post.floor ? null : post.floor">{{ post.author }}</button><small>{{ formatDate(post.created) }}</small>
             <b>{{ post.floor === 1 ? '楼主' : post.floor + ' 楼' }}</b>
           </header>
+          <section v-if="authorFloor === post.floor" :id="'author-card-' + post.floor"
+            class="author-card panel" :aria-label="post.author + '的资料'" @keydown.esc="authorFloor = null">
+            <header class="bar heading"><strong>{{ post.author }}</strong>
+            </header>
+            <template v-if="post.profile">
+              <div class="row author-fields">
+                <div>头衔 <b>{{ post.profile.title }}</b></div>
+                <div>等级 <a :href="legacy + 'lookinfo.cgi?action=style'">{{ post.profile.level || '—' }}</a>
+                  <img v-if="post.profile.badge" :src="img + 'images/' + post.profile.badge" alt="">
+                </div>
+                <div>信息
+                  <img v-if="post.profile.online" :src="img + 'images/online1.gif'" alt="当前在线">
+                  <span v-else>未显示在线</span>
+                  <img v-if="post.profile.roleIcon" :src="img + 'images/' + post.profile.roleIcon + '.gif'" :alt="post.profile.title">
+                </div>
+                <div>威望 <b>{{ post.profile.reputation }}</b>　积分 <b>{{ post.profile.points }}</b></div>
+                <div>现金 <b>{{ post.profile.cash }} {{ post.profile.currency || '雷傲元' }}</b></div>
+                <div>存款 <b>{{ post.profile.deposit ?? '没开户' }}</b></div>
+                <div>贷款 <b>{{ post.profile.loan || '没贷款' }}</b></div>
+                <div>来自 <b>{{ post.profile.location || '保密' }}</b>
+                  <img :src="img + 'flags/' + post.profile.flag + '.gif'" alt="">
+                </div>
+                <div>发帖 <b>{{ post.profile.posts }}</b> 篇</div>
+                <div>精华 <b>{{ post.profile.featured }}</b> 篇</div>
+                <div>累计在线 <b>{{ onlineDuration(post.profile.onlineSeconds) }}</b></div>
+                <div>注册 <b>{{ formatDate(post.profile.joined) || '—' }}</b></div>
+                <div>造访 <b>{{ formatDate(post.profile.lastVisit) || '—' }}</b></div>
+              </div>
+            </template>
+            <p v-else class="row">暂无会员资料</p>
+          </section>
           <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><template v-else><component :is="token.tag" v-for="(token, index) in (post.ubb ? ubbTokens(post.body) : [{tag: 'span', text: post.body}])" :key="index">{{ token.text }}</component></template></div>
         </article>
         <div class="actions">
