@@ -60,7 +60,7 @@ if ($path eq '/robots.txt') {
         wap_sms wap_sms_all wap_smssave wap_smssend);
     my $rules = "User-agent: *\n";
     $rules .= "Disallow: /cgi-bin/$_.cgi\n" for @blocked;
-    $rules .= "Disallow: /cgi-bin/\$_/\n" for qw(data boarddata cache members messages search);
+    $rules .= "Disallow: /cgi-bin/$_/\n" for qw(data boarddata cache members messages search);
     $rules .= "Disallow: /api/\nDisallow: /m/search\nSitemap: $base/sitemap.xml\n";
     response('text/plain', $rules);
     exit;

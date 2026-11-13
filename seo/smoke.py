@@ -24,6 +24,10 @@ with urlopen(base + "/robots.txt", timeout=10) as response:
     for path in ("admin", "install", "loginout", "register", "messanger"):
         assert f"Disallow: /cgi-bin/{path}.cgi" in rules
 
+    for directory in ("data", "boarddata", "cache", "members", "messages", "search"):
+        assert f"Disallow: /cgi-bin/{directory}/" in rules.splitlines()
+    assert "$_" not in rules
+
 with urlopen(base + "/sitemap.xml", timeout=10) as response:
     assert response.headers.get_content_type() == "application/xml"
     urls = [node.text for node in ET.fromstring(response.read().decode("utf-8")).iterfind(".//{*}loc")]
