@@ -96,3 +96,7 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .post .author-card{position:absolute;z-index:5;top:44px;left:8px;width:min(360px,calc(100% - 16px));max-height: min(65vh,450px);overflow:auto;background:#f3f7ff;border:1px solid var(--border);box-shadow:0 4px 12px #17395f33}
 .author-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px}
 .author-fields img{max-width:100px;max-height:16px;vertical-align:middle}
+.share-button{flex:none}
+.share-options{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.share-options input{min-width:0;width:100%;font:inherit}
+.share-options p{grid-column:1/-1}

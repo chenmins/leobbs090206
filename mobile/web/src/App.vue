@@ -5,6 +5,32 @@ import Mailbox from './Mailbox.vue'
 import { ubbTokens } from './ubb.js'
 
 const state = ref(null)
+const shareOpen = ref(false)
+const shareStatus = ref('')
+const shareUrl = computed(() => new URL(topicLink(boardId.value, topicId.value), location.origin).href)
+
+async function shareTopic() {
+  shareStatus.value = ''
+  if (navigator.share) {
+    try {
+      await navigator.share({title: state.value.topic.title, url: shareUrl.value})
+      return
+    } catch (error) {
+      if (error.name === 'AbortError') return
+    }
+  }
+  shareOpen.value = !shareOpen.value
+}
+
+async function copyShareLink() {
+  try {
+    await navigator.clipboard.writeText(shareUrl.value)
+    shareStatus.value = '链接已复制'
+  } catch {
+    shareStatus.value = '请长按链接复制'
+  }
+}
+
 const authorFloor = ref(null)
 const onlineDuration = seconds => [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
   .map(value => String(value).padStart(2, '0')).join(':')
@@ -451,7 +477,15 @@ onUnmounted(() => {
         <p v-if="!state.items.length" class="row">这一页没有主题</p>
       </section>
       <template v-else>
-        <h1 class="bar panel">{{ state.topic.title }}</h1>
+        <div class="bar panel heading">
+          <h1>{{ state.topic.title }}</h1>
+          <button class="button share-button" type="button" @click="shareTopic">分享</button>
+        </div>
+        <section v-if="shareOpen" class="panel row share-options" aria-label="分享帖子">
+          <input :value="shareUrl" aria-label="帖子链接" readonly @focus="$event.target.select()">
+          <button type="button" @click="copyShareLink">复制链接</button>
+          <p v-if="shareStatus" role="status">{{ shareStatus }}</p>
+        </section>
         <article v-for="post in state.items" :key="post.floor" class="panel post">
           <header class="byline">
             <button type="button" class="author-toggle" :style="{color: post.profile?.color || undefined}" :aria-expanded="authorFloor === post.floor"
