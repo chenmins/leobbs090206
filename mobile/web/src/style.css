@@ -86,3 +86,6 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .profile-grid h3{margin:0 0 4px;font-size:14px}
 .profile-link{border:0;background:none;padding:0;color:var(--link);font:inherit;text-decoration:underline}
 @media(max-width:380px){.profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.profile-grid section > div{min-height:1.65em;line-height:1.65}
+.profile-grid .profile-link{display:inline;min-height:0;line-height:inherit;vertical-align:baseline}
