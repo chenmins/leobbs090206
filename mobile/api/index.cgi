@@ -3,10 +3,12 @@ use strict;
 use warnings;
 use utf8;
 use CGI;
-use Encode qw(decode FB_CROAK);
+use Encode qw(decode encode FB_CROAK);
 use HTML::Entities qw(decode_entities);
 use JSON::PP;
 
+$CGI::POST_MAX = 65536;
+$CGI::DISABLE_UPLOADS = 1;
 my $query = CGI->new;
 my $root = '/var/www/html/cgi-bin';
 my %enabled = map { $_ => 1 } grep { /\A[1-9][0-9]*\z/ }
@@ -93,7 +95,28 @@ sub page {
     return {page => 0 + $index, pages => $pages, items => [@items[$start .. $end]]};
 }
 
+# Encode a UTF-8 form for the legacy CGI, which still handles authentication and writes.
+sub legacy_form {
+    my %allowed = map { $_ => 1 } qw(action forum topic inmembername inpassword
+        CookieDate intopictitle inpost uselbcode);
+    my @pairs;
+    for my $key ($query->param) {
+        send_json('400 Bad Request', {error => '表单字段无效'}) unless $allowed{$key};
+        my $value = scalar $query->param($key);
+        my $bytes = eval { encode('cp936', decode('UTF-8', $value, FB_CROAK), FB_CROAK) };
+        send_json('422 Unprocessable Entity', {error => '含有旧论坛无法保存的字符，请移除 emoji 或生僻字'})
+            if $@;
+        $bytes =~ s/([^a-zA-Z0-9_.~-])/sprintf('%%%02X', ord($1))/ge;
+        push @pairs, "$key=$bytes";
+    }
+    send_json('200 OK', {form => join('&', @pairs)});
+}
+
 sub dispatch {
+    if (($ENV{PATH_INFO} // '') eq '/legacy-form' && $query->request_method eq 'POST') {
+        send_json('413 Payload Too Large', {error => '表单太长'}) if $query->cgi_error;
+        legacy_form();
+    }
     send_json('405 Method Not Allowed', {error => '仅支持 GET'}) unless $query->request_method eq 'GET';
     my $path = $ENV{PATH_INFO} // '';
     my $index = $query->param('page') // 1;
@@ -120,13 +143,19 @@ sub dispatch {
             my @f = fields($row);
             next unless @f >= 8;
             my $raw_body = $f[6];
-            $raw_body =~ s/\[DISABLELBCODE\]\z//i;
+            my $ubb_disabled = $raw_body =~ s/\[DISABLELBCODE\]\z//i;
             $raw_body =~ s/<br\s*\/?\s*>/\n/ig;
             my $body = text($raw_body);
             # Keep legacy visibility controls and advanced markup in the original renderer.
-            my $desktop_only = $body =~ /\[|<|>/;
+            my $desktop_only = $body =~ /LBHIDDEN|LBSALE|\[\/?(?:hide|postisdelete|adminope|uploadfile)/i;
+            # Only send text and the small set of UBB tags the client can render.
+            my $plain = $body;
+            $plain =~ s/\[\/?(?:b|i|u|quote|code)\]//ig;
+            $desktop_only ||= $plain =~ /\[[a-z][a-z0-9]*(?:=|\])/i;
+            $desktop_only ||= $plain =~ /<\/?[a-z]/i;
             push @posts, {author => text($f[0]), created => 0 + ($f[5] || 0),
-                body => $desktop_only ? '' : $body, desktopOnly => $desktop_only ? JSON::PP::true : JSON::PP::false,
+                body => $desktop_only ? '' : $body, ubb => $ubb_disabled ? JSON::PP::false : JSON::PP::true,
+                desktopOnly => $desktop_only ? JSON::PP::true : JSON::PP::false,
                 floor => 1 + @posts};
         }
         send_json('404 Not Found', {error => '主题不存在'}) unless @posts;

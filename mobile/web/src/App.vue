@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ubbTokens } from './ubb.js'
 
 const state = ref(null)
 const error = ref('')
@@ -17,6 +18,72 @@ const img = '/non-cgi/'
 const date = new Intl.DateTimeFormat('zh-CN', {dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Shanghai'})
 const formatDate = value => value ? date.format(value * 1000) : ''
 const desktopTopic = computed(() => legacy + 'topic.cgi?forum=' + boardId.value + '&topic=' + topicId.value)
+
+const mode = ref('')
+const account = ref(sessionStorage.getItem('leo-account') || '')
+const username = ref('')
+const password = ref('')
+const title = ref('')
+const body = ref('')
+const useUbb = ref(true)
+const formError = ref('')
+const busy = ref(false)
+
+function openForm(nextMode) {
+  mode.value = nextMode
+  formError.value = ''
+  if (nextMode) window.scrollTo(0, 0)
+}
+
+async function submit() {
+  if (busy.value) return
+  busy.value = true
+  formError.value = ''
+  const action = mode.value
+  const login = action === 'login'
+  const fields = login
+    ? {action, inmembername: username.value, inpassword: password.value, CookieDate: '0'}
+    : {action, forum: boardId.value, inpost: body.value, uselbcode: useUbb.value ? 'yes' : 'no'}
+  if (action === 'addnew') fields.intopictitle = title.value
+  if (action === 'addreply') fields.topic = topicId.value
+  try {
+    const encoded = await fetch('/api/v1/legacy-form', {method: 'POST', body: new URLSearchParams(fields)})
+    const result = await encoded.json()
+    if (!encoded.ok) throw new Error(result.error)
+    const response = await fetch(legacy + (login ? 'loginout.cgi' : 'post.cgi'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: result.form,
+    })
+    const html = new TextDecoder('gbk').decode(await response.arrayBuffer())
+    if (login) {
+      if (!response.ok || !html.includes('感谢你登录')) throw new Error('登录失败，请核对用户名和密码')
+      account.value = username.value
+      sessionStorage.setItem('leo-account', account.value)
+      password.value = ''
+      mode.value = ''
+    } else {
+      if (!response.ok || !/(新主题发表成功|回复成功)/.test(html)) {
+        const doc = new DOMParser().parseFromString(html, 'text/html')
+        const reason = [...doc.querySelectorAll('li')].find(li => li.textContent.includes('对不起'))
+        throw new Error(reason?.textContent.trim() || '提交失败，请确认已登录且有发帖权限')
+      }
+      const newTopic = html.match(/topic\.cgi\?forum=\d+&topic=(\d+)/)?.[1]
+      if (action === 'addnew' && newTopic) location.assign(topicLink(boardId.value, newTopic))
+      else location.reload()
+    }
+  } catch (failure) {
+    formError.value = failure.message || '提交失败'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function logout() {
+  await fetch(legacy + 'loginout.cgi?action=logout')
+  account.value = ''
+  sessionStorage.removeItem('leo-account')
+}
 
 async function load() {
   // Cancel the previous navigation so a slow response cannot overwrite the current page.
@@ -63,12 +130,30 @@ onUnmounted(() => {
     <nav aria-label="论坛导航">
       <a href="/m/"><img :src="img + 'images/gohome.gif'" alt="">首页</a>
       <a :href="legacy + 'search.cgi'">搜索</a>
-      <a :href="legacy + 'loginout.cgi'">登录</a>
+      <button v-if="!account" class="nav-action" @click="openForm('login')">登录</button>
+      <button v-else class="nav-action" @click="logout">退出 {{ account }}</button>
       <a :href="legacy + 'leobbs.htm'">桌面版</a>
     </nav>
   </header>
 
   <main>
+    <form v-if="mode" class="panel compose" @submit.prevent="submit">
+      <h2 class="bar">{{ {login: '登录', addnew: '发表主题', addreply: '回复'}[mode] }}</h2>
+      <div class="row">
+        <template v-if="mode === 'login'">
+          <label>用户名<input v-model="username" autocomplete="username" required></label>
+          <label>密码<input v-model="password" type="password" autocomplete="current-password" required></label>
+        </template>
+        <template v-else>
+          <label v-if="mode === 'addnew'">标题<input v-model.trim="title" maxlength="80" required></label>
+          <label>正文<textarea v-model="body" rows="6" maxlength="8000" required></textarea></label>
+          <label><input v-model="useUbb" type="checkbox">启用 UBB</label>
+        </template>
+        <p v-if="formError" role="alert">{{ formError }}</p>
+        <button :disabled="busy">{{ busy ? '提交中…' : '提交' }}</button>
+        <button type="button" :disabled="busy" @click="openForm('')">取消</button>
+      </div>
+    </form>
     <p v-if="error" role="alert" class="panel row">{{ error }} <button @click="load">重试</button></p>
     <p v-else-if="!state" role="status" class="panel row">正在读取论坛…</p>
     <template v-else-if="!boardId">
@@ -93,7 +178,7 @@ onUnmounted(() => {
     <template v-else>
       <div class="crumb"><a href="/m/">首页</a> › <a :href="boardLink(boardId)">{{ state.board.name }}</a><template v-if="topicId"> › 帖子详情</template></div>
       <section v-if="!topicId" class="panel">
-        <div class="bar heading"><h1>{{ state.board.name }}</h1><a class="button" :href="legacy + 'post.cgi?action=new&forum=' + boardId"><img :src="img + 'images/edit.gif'" alt="">发帖</a></div>
+        <div class="bar heading"><h1>{{ state.board.name }}</h1><button class="button" @click="openForm('addnew')"><img :src="img + 'images/edit.gif'" alt="">发帖</button></div>
         <p v-if="state.board.description" class="row intro">{{ state.board.description }}</p>
         <a v-for="topic in state.items" :key="topic.id" class="row entry" :href="topicLink(boardId, topic.id)">
           <img :src="img + 'posticons/' + topic.icon + '.gif'" alt="">
@@ -108,11 +193,11 @@ onUnmounted(() => {
             <strong>{{ post.author }}</strong><small>{{ formatDate(post.created) }}</small>
             <b>{{ post.floor === 1 ? '楼主' : post.floor + ' 楼' }}</b>
           </header>
-          <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><template v-else>{{ post.body }}</template></div>
+          <div class="body"><a v-if="post.desktopOnly" :href="desktopTopic">在经典版查看此楼内容</a><template v-else><component :is="token.tag" v-for="(token, index) in (post.ubb ? ubbTokens(post.body) : [{tag: 'span', text: post.body}])" :key="index">{{ token.text }}</component></template></div>
         </article>
         <div class="actions">
           <a :href="desktopTopic">经典版帖子</a>
-          <a v-if="!['closed', 'pollclosed'].includes(state.topic.state)" class="button" :href="legacy + 'post.cgi?action=reply&forum=' + boardId + '&topic=' + topicId"><img :src="img + 'images/replynow.gif'" alt="">回复</a>
+          <button v-if="!['closed', 'pollclosed'].includes(state.topic.state)" class="button" @click="openForm('addreply')"><img :src="img + 'images/replynow.gif'" alt="">回复</button>
         </div>
       </template>
       <nav v-if="state.pages > 1 || page > 1" class="panel pager" aria-label="分页">
