@@ -27,3 +27,7 @@
 | `/cgi-bin/friendlist.cgi?action=mobilelist` 或 `blocklist.cgi?action=mobilelist` | 当前账号的好友录或黑名单 |
 
 `/api/v1/` 的错误响应包含 `error` 字段。常见状态码为 400 参数无效、404 资源不可见或不存在、405 方法错误、413 表单过大、422 字符无法转换为 GBK、500 读取失败。经典 CGI 的操作响应仍可能是 GBK HTML。
+
+## AI / Agent 接入
+
+官方 SDK 实现的游客只读 MCP 见 [MCP 说明](../mcp/README.md)。它复用上述 API，不单独读取论坛文件。工具支持版块浏览、搜索和分页阅读；调用不携带 Cookie、不传 `count=1`。目前没有 JSON 发帖/回复写接口或 Agent Token，不能把 `legacy-form` 当作写入 API。
