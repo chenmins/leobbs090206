@@ -270,8 +270,12 @@ async function submit() {
     } else {
       if (!response.ok || !/(新主题发表成功|回复成功|编辑成功)/.test(html)) {
         const doc = new DOMParser().parseFromString(html, 'text/html')
-        const reason = [...doc.querySelectorAll('li')].find(li => li.textContent.includes('对不起'))
-        throw new Error(reason?.textContent.trim() || '提交失败，请确认已登录且有发帖权限')
+        const heading = [...doc.querySelectorAll('b')].find(node =>
+          /^关于.+的详细原因[：:]$/.test(node.textContent.trim()))
+        const details = heading?.nextElementSibling
+        const reason = details?.matches('ul') ? details.querySelector('li')?.textContent.trim() : ''
+        const refreshWarning = doc.body.textContent.match(/服务器忙，请\s*\d+\s*秒后按刷新键继续[。！]?/)?.[0]
+        throw new Error(reason || refreshWarning || '提交失败，请确认已登录且有发帖权限')
       }
       const newTopic = html.match(/topic\.cgi\?forum=\d+&topic=(\d+)/)?.[1]
       if (action === 'addnew' && newTopic) location.assign(topicLink(boardId.value, newTopic))
