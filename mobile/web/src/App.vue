@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import ForumStats from './ForumStats.vue'
 import Mailbox from './Mailbox.vue'
+import Pagination from './Pagination.vue'
 import UbbBody from './ubb.js'
 import UbbEditor from './UbbEditor.vue'
 
@@ -68,6 +69,27 @@ const legacy = '/cgi-bin/'
 const img = '/non-cgi/'
 const date = new Intl.DateTimeFormat('zh-CN', {dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Shanghai'})
 const formatDate = value => value ? date.format(value * 1000) : ''
+const statusIcons = {
+  pinned: ['locktop', '置顶主题'], closed: ['topiclocked3', '锁定主题'],
+  pollclosed: ['closedb1', '锁定投票'], poll: ['closedb', '投票主题'],
+  hotNew: ['topichot3', '近期热门主题'], hot: ['topichotnonew', '热门主题'],
+  recent: ['topicnew3', '近期新主题'], normal: ['topicnonew', '普通主题'],
+}
+const topicLegend = computed(() => [
+  ['打开的主题', [[['topicnew3'], '近期发表'], [['topicnonew'], '普通主题']]],
+  ['回复达 ' + (state.value?.hotTopicMark ?? 15) + ' 次的热门帖', [
+    [['topichot3', 'closedbhot'], '近期热门'], [['topichotnonew'], '热门主题'],
+  ]],
+  ['锁定帖子图标', [[['topiclocked3'], '不接受回复的主题'], [['closedb1'], '不接受回复的投票']]],
+  ['特殊帖子图标', [[['abstop', 'lockcattop', 'locktop'], '固顶的主题'], [['closedb'], '投票类别的主题']]],
+])
+function topicStatus(topic) {
+  if (topic.pinned) return statusIcons.pinned
+  if (Object.hasOwn(statusIcons, topic.state)) return statusIcons[topic.state]
+  if (topic.hot) return statusIcons[topic.recent ? 'hotNew' : 'hot']
+  return statusIcons[topic.recent ? 'recent' : 'normal']
+}
+
 const desktopTopic = computed(() => legacy + 'topic.cgi?forum=' + boardId.value + '&topic=' + topicId.value)
 
 const mode = ref('')
@@ -391,7 +413,7 @@ async function load() {
     ? '/boards/' + encodeURIComponent(boardId.value) + (topicId.value ? '/topics/' + encodeURIComponent(topicId.value) : '')
     : '/home'
   try {
-    const response = await fetch('/api/v1' + path + '?' + (searching.value ? searchParams : new URLSearchParams({page: page.value})), {signal: controller.signal})
+    const response = await fetch('/api/v1' + path + '?' + (searching.value ? searchParams : new URLSearchParams({page: page.value, count: 1})), {signal: controller.signal})
     const data = await response.json()
     if (!response.ok) throw new Error(data.error)
     if (!controller.signal.aborted) {
@@ -530,11 +552,7 @@ onUnmounted(() => {
         </a>
         <p v-if="!state.items.length" class="row">没有找到匹配的帖子</p>
       </section>
-      <nav v-if="state.pages > 1 || page > 1" class="panel pager" aria-label="搜索分页">
-        <a v-if="page > 1" class="button" :href="searchLink(Number(page) - 1)">上一页</a>
-        <span>{{ page }} / {{ state.pages }}</span>
-        <a v-if="page < state.pages" class="button" :href="searchLink(Number(page) + 1)">下一页</a>
-      </nav>
+      <Pagination v-if="state.pages > 1 || page > 1" :page="Number(page)" :pages="state.pages" :link="searchLink" label="搜索分页" />
     </template>
     <template v-else-if="!boardId">
       <details v-if="account" class="panel" @toggle="$event.currentTarget.open && loadProfile()">
@@ -584,9 +602,16 @@ onUnmounted(() => {
       <section v-if="!topicId" class="panel">
         <div class="bar heading"><h1>{{ state.board.name }}</h1><button class="button" :disabled="checkingAccount" @click="openForm('addnew')"><img :src="img + 'images/edit.gif'" alt="">发帖</button></div>
         <p v-if="state.board.description" class="row intro">{{ state.board.description }}</p>
-        <a v-for="topic in state.items" :key="topic.id" class="row entry" :href="topicLink(boardId, topic.id)">
-          <img :src="img + 'posticons/' + topic.icon + '.gif'" alt="">
-          <span><b>{{ topic.title }}</b><small>{{ topic.author }} · 回复 {{ topic.replies }} · {{ formatDate(topic.updated) }}</small></span>
+        <div class="row topic-columns"><span>状态</span><span>主题</span></div>
+        <a v-for="topic in state.items" :key="topic.id" class="row entry topic-columns" :href="topicLink(boardId, topic.id)">
+          <span class="topic-status">
+            <img :src="img + 'images/leobbs/' + topicStatus(topic)[0] + '.gif'" :alt="topicStatus(topic)[1]">
+          </span>
+          <span><img class="topic-mood" :src="img + 'posticons/' + topic.icon + '.gif'" alt="心情">
+            <b>{{ topic.title }}</b>
+            <img v-if="topic.recent" class="topic-new" :src="img + 'images/leobbs/topnew.gif'" alt="新帖">
+            <small>{{ topic.author }} · 回复 {{ topic.replies }} · 点击 {{ topic.views }} · {{ formatDate(topic.updated) }}</small>
+          </span>
         </a>
         <p v-if="!state.items.length" class="row">这一页没有主题</p>
       </section>
@@ -656,12 +681,19 @@ onUnmounted(() => {
           <button v-if="!['closed', 'pollclosed'].includes(state.topic.state)" class="button" :disabled="checkingAccount" @click="openForm('addreply')"><img :src="img + 'images/replynow.gif'" alt="">回复</button>
         </div>
       </template>
-      <nav v-if="state.pages > 1 || page > 1" class="panel pager" aria-label="分页">
-        <a v-if="page > 1" class="button" :href="pageLink(page - 1)">上一页</a>
-        <span>{{ page }} / {{ state.pages }}</span>
-        <a v-if="page < state.pages" class="button" :href="pageLink(Number(page) + 1)">下一页</a>
-      </nav>
+      <Pagination v-if="state.pages > 1 || page > 1" :page="Number(page)" :pages="state.pages" :link="pageLink" label="分页" />
     </template>
+    <details v-if="state?.board && !topicId && !searching" class="panel" open>
+      <summary class="bar">LeoBBS 论坛图例</summary>
+      <div class="row forum-legend topic-legend">
+        <section v-for="[heading, entries] in topicLegend" :key="heading">
+          <h3>{{ heading }}</h3>
+          <div v-for="[icons, label] in entries" :key="label" class="legend-item">
+            <span><img v-for="icon in icons" :key="icon" :src="img + 'images/leobbs/' + icon + '.gif'" alt=""></span>{{ label }}
+          </div>
+        </section>
+      </div>
+    </details>
     <div id="reply-composer"></div>
   </main>
   <footer>LeoBBS · 雷傲科技</footer>

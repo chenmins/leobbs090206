@@ -11,6 +11,7 @@
     &winlock("${lbdir}data/counter.cgi") if ($OS_USED eq "Nt" || $OS_USED eq "Unix");
     if (-e "${lbdir}data/counter.cgi") {
     	open(FILE,"+<${lbdir}data/counter.cgi");
+        flock(FILE, 2) if ($OS_USED eq "Unix");
         $count = <FILE>;
         $onlinemax = @onlinedata;
         ($count1,$count2,$onlinemax1,$onlinemaxtime1) = split(/\t/, $count);

@@ -16,9 +16,45 @@ my %enabled = map { $_ => 1 } grep { /\A[1-9][0-9]*\z/ }
     split /,/, $ENV{LEOBBS_MOBILE_PUBLIC_BOARDS} // '';
 my $json = JSON::PP->new->utf8;
 
+my $visit_cookie;
+sub count_page {
+    return unless (scalar $query->param('count') // '') eq '1';
+    my $path = "$root/data/counter.cgi";
+    open my $counter, '+<', $path or return;
+    flock($counter, 2) or return;
+    my ($visits, $clicks, $peak, $peak_at) = split /\t/, (<$counter> // '');
+    my $first = !(scalar $query->cookie('leobbs_mobile_visit'));
+    seek($counter, 0, 0) or return;
+    print {$counter} join("\t", ($visits || 0) + $first, ($clicks || 0) + 1,
+        $peak || 0, $peak_at || 0, '');
+    truncate($counter, tell($counter));
+    close $counter;
+    $visit_cookie = $query->cookie(-name => 'leobbs_mobile_visit', -value => '1',
+        -path => '/api/v1/', -httponly => 1, -samesite => 'Lax') if $first;
+}
+
+sub count_topic_view {
+    my ($forum, $topic) = @_;
+    return unless (scalar $query->param('count') // '') eq '1';
+    open my $file, '+<:raw', "$root/forum$forum/$topic->{id}.pl" or return;
+    flock($file, 2) or return;
+    my $row = <$file> // '';
+    my @fields = split /\t/, $row, -1;
+    return unless @fields >= 7 && $fields[0] eq $topic->{id};
+    return unless $fields[5] =~ /\A[0-9]*\z/;
+    my $views = ($fields[5] eq '' ? (($fields[4] || 0) + 1) * 8 : $fields[5]) + 1;
+    $fields[5] = $views;
+    seek($file, 0, 0) or return;
+    print {$file} join("\t", @fields) or return;
+    truncate($file, tell($file)) or return;
+    close($file) or return;
+    $topic->{views} = $views;
+}
+
 sub send_json {
     my ($status, $data) = @_;
     print "Status: $status\r\nContent-Type: application/json; charset=utf-8\r\n";
+    print "Set-Cookie: $visit_cookie\r\n" if $visit_cookie;
     print "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n";
     print $json->encode($data);
     exit;
@@ -67,6 +103,10 @@ sub board {
 sub topics {
     my ($id) = @_;
     my @topics;
+    my %style = %{classic_settings('data/styles.cgi')};
+    my $hot = $style{hottopicmark} // 15;
+    my $new_since = time - 3600 * ($style{newmarktime} // 24);
+    my %pinned = map { /^(\d+)\s*$/ ? ($1 => 1) : () } rows("boarddata/ontop$id.cgi");
     # The board index holds ordered IDs. Each topic has a separate metadata record.
     for my $row (rows("boarddata/listno$id.cgi")) {
         chomp $row;
@@ -81,6 +121,8 @@ sub topics {
         # The classic renderer strips this internal title prefix too.
         $label =~ s/^＊＃！＆＊//;
         push @topics, {id => 0 + $topic, title => $label, state => text($state),
+            pinned => $pinned{$topic} || 0, hot => ($replies || 0) >= $hot ? 1 : 0,
+            recent => ($created || 0) > $new_since ? 1 : 0,
             author => text($author), updated => 0 + ($updated || 0), created => 0 + ($created || 0),
             replies => 0 + ($replies || 0), views => 0 + ($views || 0),
             icon => defined $icon && $icon =~ /\A([0-9]{2})(?:\.gif)?\z/ ? $1 : '00'};
@@ -280,6 +322,7 @@ sub dispatch {
         send_json('200 OK', {%{page($index, @matches)}, boards => \@visible});
     }
     if ($path eq '/home') {
+        count_page();
         my @boards = grep { defined } map { board($_) } sort { $a <=> $b } keys %enabled;
         my @latest = sort { $b->{updated} <=> $a->{updated} } map {
             my $id = $_->{id};
@@ -293,7 +336,8 @@ sub dispatch {
         my $board = board($id);
         send_json('404 Not Found', {error => '版块不存在'}) unless $board;
         my @topics = topics($id);
-        send_json('200 OK', {board => $board, %{page($index, @topics)}}) unless defined $topic_id;
+        count_page() unless defined $topic_id;
+        send_json('200 OK', {board => $board, hotTopicMark => 0 + (classic_settings('data/styles.cgi')->{hottopicmark} // 15), %{page($index, @topics)}}) unless defined $topic_id;
         my ($topic) = grep { $_->{id} == $topic_id } @topics;
         send_json('404 Not Found', {error => '主题不存在'}) unless $topic;
         my @posts;
@@ -341,6 +385,8 @@ sub dispatch {
                 unless exists $profiles{$raw};
             $post->{profile} = $profiles{$raw};
         }
+        count_page();
+        count_topic_view($id, $topic);
         send_json('200 OK', {board => $board, topic => $topic, %$result});
     }
     send_json('404 Not Found', {error => '接口不存在'});

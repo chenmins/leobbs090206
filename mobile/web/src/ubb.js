@@ -4,6 +4,15 @@ import { h } from 'vue'
 const tags = {b: 'strong', i: 'em', u: 'u', s: 's', quote: 'blockquote', code: 'pre'}
 const parserOptions = {contextFreeTags: ['code'], enableEscapeTags: false}
 
+function normalizeBreaks(body) {
+  return body.split(/(\[code(?:=[^\]]*)?\][\s\S]*?\[\/code\])/gi).map((part, index) => {
+    if (index % 2) return part
+    return part.replace(/\[br\](?:\[\/br\])?|<br\s*\/?>/gi, '\n')
+      .replace(/<\/p\s*>\s*<p\s*>|<\/?p\s*>/gi, (tag, offset) =>
+        offset === 0 ? '' : '\n\n')
+  }).join('')
+}
+
 function safeUrl(value) {
   if (!/^(https?:\/\/|\/(?![/\\]))/i.test(value)) return
   try {
@@ -43,7 +52,7 @@ export default {
   render() {
     if (!this.enabled) return this.body
     try {
-      return parse(this.body, parserOptions).map(node => render(node))
+      return parse(normalizeBreaks(this.body), parserOptions).map(node => render(node))
     } catch {
       return this.body
     }

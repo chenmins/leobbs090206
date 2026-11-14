@@ -122,3 +122,20 @@ nav .mail-toggle img{width:auto;height:auto;max-width:24px;max-height:24px}
 .sc-editor .sceditor-container{max-width:100%;box-sizing:border-box}
 
 .post-edit-note{margin:0;padding:0 12px 10px;color:#59677c;font-size:12px;overflow-wrap:anywhere}
+nav.page-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;padding:0;background:#f1f6ff}
+.page-strip > *{display:grid;place-items:center;min-height:46px;margin:0;font-size:14px;white-space:nowrap}
+.page-strip > a{color:var(--blue);font-weight:bold}
+.page-strip .page-edge{color:#637085}
+.page-picker{position:relative;border-inline:1px solid #b8cae8;background:white;color:var(--blue)}
+.page-picker select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.page-picker:focus-within{outline:2px solid var(--blue);outline-offset:-2px}
+.topic-columns{display:grid;grid-template-columns:38px minmax(0,1fr);align-items:start;gap:8px}
+div.topic-columns{background:var(--pale);font-size:13px;color:var(--blue)}
+.topic-status{text-align:center}
+.entry .topic-new{width:auto;height:auto;vertical-align:middle;margin:0 0 0 4px}
+.entry .topic-mood{margin:0 4px 0 0;vertical-align:middle}
+.topic-legend{gap:12px}
+.topic-legend h3{margin:0 0 4px;font-size:13px;color:#990000}
+.topic-legend .legend-item{font-size:12px;min-height:24px}
+.topic-legend .legend-item span{display:inline-flex;gap:2px;flex:none}
+@media(min-width:600px){.topic-legend{grid-template-columns:repeat(4,minmax(0,1fr))}}
