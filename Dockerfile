@@ -14,6 +14,7 @@ RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 instal
     apache2 \
     tzdata \
     perl \
+    python3 \
     libcgi-pm-perl \
     libgd-perl \
     libimage-exiftool-perl \
@@ -61,6 +62,8 @@ COPY non-cgi /var/www/html/non-cgi
 COPY --from=mobile-web /app/dist/ /var/www/html/m/
 COPY --chmod=755 seo/index.cgi /opt/leobbs-seo/index.cgi
 COPY --chmod=755 mobile/api/index.cgi /opt/leobbs-mobile/index.cgi
+COPY agent/ /opt/leobbs-agent/
+RUN chmod 755 /opt/leobbs-agent/write.cgi
 COPY mobile/api/apache.conf /etc/apache2/conf-available/leobbs-mobile.conf
 RUN a2enconf leobbs-mobile
 

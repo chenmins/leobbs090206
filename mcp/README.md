@@ -1,6 +1,6 @@
-# LeoBBS MCP（游客只读阶段）
+# LeoBBS MCP
 
-通过官方 MCP TypeScript SDK 的 stdio 协议，把论坛现有 UTF-8 JSON API 提供给 AI/Agent。当前没有发帖、回复、登录或私信工具，也不提供远程 HTTP MCP 端点。
+通过官方 MCP TypeScript SDK 的 stdio 协议，把论坛现有 UTF-8 JSON API 提供给 AI/Agent。默认提供游客只读工具；配置独立 Agent Token 后额外提供发帖和回复工具。不提供登录、私信工具或远程 HTTP MCP 端点。
 
 ## 本机使用
 
@@ -69,7 +69,7 @@ docker build -t leobbs-mcp:local mcp
 
 错误结果不携带成功格式的 `structuredContent`，兼容严格校验输出 Schema 的 SDK 客户端。输入参数不合法由 MCP SDK 校验。
 
-保留 API 中文错误原因；支持 `INVALID_ARGUMENT/UNAUTHENTICATED/FORBIDDEN/NOT_FOUND/RATE_LIMITED/UPSTREAM_ERROR`。网络及响应错误为 `NETWORK_ERROR/TIMEOUT/INVALID_RESPONSE/UNEXPECTED_REDIRECT/RESPONSE_TOO_LARGE`。超时 10 秒，响应最多 4 MiB，不自动跟随重定向，不自动重试。`retryAfterSeconds` 提取数字型 `Retry-After`；没有该信息则为 `null`。
+保留 API 中文错误原因；支持 `INVALID_ARGUMENT/UNAUTHENTICATED/FORBIDDEN/NOT_FOUND/RATE_LIMITED/UPSTREAM_ERROR`。网络及响应错误为 `NETWORK_ERROR/TIMEOUT/INVALID_RESPONSE/UNEXPECTED_REDIRECT/RESPONSE_TOO_LARGE`。读取超时 10 秒，响应最多 4 MiB，不自动跟随重定向，不自动重试。`retryAfterSeconds` 提取数字型 `Retry-After`；没有该信息则为 `null`。
 
 ## 验证
 
@@ -84,13 +84,30 @@ LEOBBS_URL=http://host.docker.internal:8080 LEOBBS_MCP_DOCKER_IMAGE=leobbs-mcp:l
 
 `npm test` 使用真实 SDK 客户端、stdio 子进程和本地 HTTP 测试服务，覆盖参数、中文、分页、筛选、隐藏正文、防止计数、404、429、格式错误、重定向、响应大小及超时。`test:live` 需要一个正在运行、至少有一个公开主题的论坛；只读，不发布测试帖。
 
-## 后续写接口
+## 发帖和回复
 
-写入阶段尚未实现。计划提供 UTF-8 JSON 发帖与回复接口，再接入 MCP：
+先部署包含 Agent 写接口的新论坛镜像，再按 [Agent 写接口说明](../agent/README.md) 为已有账号签发 Token。推荐将 Token 原文保存在权限为 600 的本机文件，并在 MCP 配置中增加：
 
-- 用户独立签发、可撤销的 Agent Token，区分 `topics:read/topics:write/replies:write` 权限与允许版块；服务端存储 Token 摘要。
-- 复用论坛原有账号、发帖权限、GBK 转码、灌水限制和落盘流程，禁止 Agent 直接修改论坛文件。
-- 服务端记录同账号的幂等键及请求摘要；重试返回原结果，不重复发帖；同键不同正文返回冲突。
-- 统一返回 JSON 错误与重试时间，成功返回主题 ID、楼层和链接；审计记录操作者及操作结果，不记录 Token。
+```json
+"env": {
+  "LEOBBS_URL": "https://your-forum.example",
+  "LEOBBS_TOKEN_FILE": "/absolute/private/path/leobbs-agent-token"
+}
+```
 
-写入鉴权、幂等性和并发落盘必须完成单独的集成测试后，才增加 `create_topic/reply_topic` 工具。
+也支持 `LEOBBS_TOKEN` 环境变量（文件优先）。Token 不作为工具参数出现，不会附加到公开读取请求。Docker MCP 可只读挂载该文件，传入容器内的 `LEOBBS_TOKEN_FILE` 路径；不要把 Token 写进镜像。
+
+配置后增加：
+
+| 工具 | 参数 |
+| --- | --- |
+| `create_topic` | `boardId`、`title`、`body`、`idempotencyKey`，可选 `ubb`、`icon` |
+| `reply_topic` | `boardId`、`topicId`、`body`、`idempotencyKey`，可选 `ubb`、`icon` |
+
+返回主题 ID、楼层、经典版/移动版链接及 `replayed`。支持 UBB；不能提交 GBK 无法保存的 Emoji。工具标注为真实写入、非删除操作，只有用户授权发布后才能调用；服务端仍验证账号权限、Token 范围和版块限制。
+
+每次新发布使用唯一幂等键，相同发布的网络重试保持键与内容不变。写调用超时为 40 秒（服务端子进程为 30 秒），不会自动重试。`WRITE_OUTCOME_UNKNOWN` 时先读取帖子核查，不得自动换键重发；明确拒绝的请求（如 429）需要修正条件并获得发布授权后才能用新键提交。详细错误、撤销、持久化和单容器限制见 Agent 文档。
+
+只读模式不需要 Token。远程 HTTP MCP、Agent 编辑/删除和私密内容读取尚未实现。
+
+会员可在手机版「个人状态 → Agent 授权」或经典版「控制面板 → Agent 授权」自行获取 Token。创建时选择所需版块及发帖/回复权限，复制只显示一次的密钥到本机私密文件，再配置 `LEOBBS_TOKEN_FILE`。撤销或到期后写入停止，公开搜索与阅读仍可使用。详见 [会员授权说明](../agent/README.md#会员授权管理接口)。

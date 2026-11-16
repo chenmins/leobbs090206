@@ -19,6 +19,10 @@ BEGIN {
     }
 }
 
+# LEOBBS_AGENT_WRITE_LOCK: serialize legacy and Agent posting across all boards.
+open(my $leobbs_write_lock, '>>', '/run/leobbs-agent/post-write.lock') or die "post lock";
+flock($leobbs_write_lock, 2) or die "post lock acquisition";
+
 use LBCGI;
 $LBCGI::POST_MAX=1024 * 10000;
 $LBCGI::DISABLE_UPLOADS = 0;

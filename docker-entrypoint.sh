@@ -40,4 +40,15 @@ mkdir -p /var/www/html/non-cgi/myimages
 chown -R www-data:www-data /var/www/html/cgi-bin /var/www/html/non-cgi || true
 chmod -R 777 /var/www/html/cgi-bin/data /var/www/html/cgi-bin/members /var/www/html/cgi-bin/messages /var/www/html/cgi-bin/boarddata /var/www/html/cgi-bin/record /var/www/html/cgi-bin/search /var/www/html/cgi-bin/cache /var/www/html/cgi-bin/lock /var/www/html/cgi-bin/ftpdata /var/www/html/cgi-bin/memblock /var/www/html/cgi-bin/memfav /var/www/html/cgi-bin/memfriend /var/www/html/cgi-bin/sale /var/www/html/cgi-bin/ebankdata /var/www/html/cgi-bin/FileCount /var/www/html/cgi-bin/verifynum /var/www/html/non-cgi/usr /var/www/html/non-cgi/usravatars /var/www/html/non-cgi/myimages || true
 
+mkdir -p /run/leobbs-agent
+chown www-data:www-data /run/leobbs-agent
+chmod 700 /run/leobbs-agent
+
+# Upgrade only the two bounded hooks even when CGI sources are bind-mounted.
+python3 /opt/leobbs-agent/install-hooks.py /var/www/html/cgi-bin
+mkdir -p /var/www/html/cgi-bin/data/agent
+chown -R www-data:www-data /var/www/html/cgi-bin/data/agent
+find /var/www/html/cgi-bin/data/agent -type d -exec chmod 700 {} \;
+find /var/www/html/cgi-bin/data/agent -type f -exec chmod 600 {} \;
+
 exec "$@"

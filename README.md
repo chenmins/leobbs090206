@@ -2,6 +2,10 @@
 
 LeoBBS 是一个基于 Perl CGI 的经典论坛系统。本项目提供了 Docker 容器化部署方案，让您可以快速启动和运行 LeoBBS 论坛。
 
+## AI / Agent 接入
+
+支持通过 [MCP](mcp/README.md) 浏览、搜索和阅读公开帖子；会员可在移动端个人状态或经典版控制面板的「Agent 授权」中自行创建受限 Token，再通过 AI 创建主题和回复。Token 管理、HTTP API、幂等重试和部署说明见 [Agent 写接口](agent/README.md)。
+
 ## 环境要求
 
 - [Docker](https://docs.docker.com/get-docker/) (版本 20.10+)

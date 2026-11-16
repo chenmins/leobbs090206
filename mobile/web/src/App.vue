@@ -1,11 +1,15 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
+import AgentTokens from './AgentTokens.vue'
 import ForumStats from './ForumStats.vue'
 import Mailbox from './Mailbox.vue'
 import Pagination from './Pagination.vue'
 import UbbBody from './ubb.js'
 import UbbEditor from './UbbEditor.vue'
 
+const classicAgent = location.pathname === '/cgi-bin/agentpanel.cgi'
+const agentPage = classicAgent || /^\/m\/agent\/?$/.test(location.pathname)
+if (classicAgent) document.body.classList.add('classic-agent')
 const state = ref(null)
 const shareOpen = ref(false)
 const shareStatus = ref('')
@@ -393,6 +397,7 @@ async function logout() {
 }
 
 async function load() {
+  if (agentPage) return
   // Cancel the previous navigation so a slow response cannot overwrite the current page.
   request?.abort()
   const controller = new AbortController()
@@ -545,7 +550,8 @@ onUnmounted(() => {
         </details>
       </form>
     </section>
-    <p v-if="error" role="alert" class="panel row">{{ error }} <button @click="load">重试</button></p>
+    <AgentTokens v-if="agentPage" :key="account" :classic="classicAgent" @login="openForm('login')" />
+    <p v-else-if="error" role="alert" class="panel row">{{ error }} <button @click="load">重试</button></p>
     <p v-else-if="!state" role="status" class="panel row">正在读取论坛…</p>
     <template v-else-if="searching">
       <section v-if="searchTerm.trim()" class="panel">
@@ -581,6 +587,7 @@ onUnmounted(() => {
             </section>
           </div>
         </div>
+        <a class="agent-profile-link" href="/m/agent"><img :src="img + 'images/profile.gif'" alt="">Agent 授权 · 管理你的 AI 访问权限</a>
       </details>
       <section v-for="category in [...new Set(state.boards.map(board => board.category))]" :key="category" class="panel">
         <h1 class="bar">◇ {{ category }}</h1>

@@ -30,4 +30,4 @@
 
 ## AI / Agent 接入
 
-官方 SDK 实现的游客只读 MCP 见 [MCP 说明](../mcp/README.md)。它复用上述 API，不单独读取论坛文件。工具支持版块浏览、搜索和分页阅读；调用不携带 Cookie、不传 `count=1`。目前没有 JSON 发帖/回复写接口或 Agent Token，不能把 `legacy-form` 当作写入 API。
+官方 SDK 实现的游客只读 MCP 见 [MCP 说明](../mcp/README.md)。它复用上述 API，不单独读取论坛文件。工具支持版块浏览、搜索和分页阅读；调用不携带 Cookie、不传 `count=1`。新增独立 Agent Token 鉴权的 `POST /api/v1/boards/{boardId}/topics` 和 `POST /api/v1/boards/{boardId}/topics/{topicId}/replies`，请求与错误格式、幂等约定见 [Agent 写接口说明](../agent/README.md)。这两个接口与原来的游客读取/legacy-form 接口分开；浏览器现有 Cookie 流程保持兼容。

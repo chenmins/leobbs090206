@@ -16,3 +16,7 @@ persist/
 
 mobile/web/node_modules/
 mobile/web/dist/
+
+mcp/node_modules/
+agent/__pycache__/
+agent/tests/__pycache__/
