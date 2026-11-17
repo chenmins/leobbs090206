@@ -1,14 +1,15 @@
 // Creates test posts: invoke only from the isolated Docker integration harness.
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, readFileSync } from 'node:fs'
 import { setTimeout as wait } from 'node:timers/promises'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 if (process.env.LEOBBS_WRITE_TEST !== 'isolated') throw new Error('Use the isolated Agent integration harness')
 const client = new Client({ name: 'isolated-write-test', version: '1' })
 try {
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: ['server.js'], env: { ...process.env } }))
+  await client.connect(process.env.LEOBBS_MCP_HTTP ? new StreamableHTTPClientTransport(new URL(process.env.LEOBBS_MCP_HTTP), {requestInit:{headers:{Authorization: 'Bearer ' + readFileSync(process.env.LEOBBS_TOKEN_FILE,'utf8').trim()}}}) : new StdioClientTransport({ command: process.execPath, args: ['server.js'], env: { ...process.env } }))
   const call = async (name, args) => {
     for (let attempt = 0; attempt < 3; attempt++) {
       const result = await client.callTool({ name, arguments: args })

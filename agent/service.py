@@ -114,7 +114,7 @@ class AgentService:
                 for path in sorted((self.state / 'tokens').glob('*.json'))
                 for record in [json.loads(path.read_text())]]
 
-    def authenticate(self, token, board, scope):
+    def identity(self, token):
         if not isinstance(token, str) or not re.fullmatch(r'leo_[0-9a-f]{64}', token):
             raise ApiError(401, 'UNAUTHENTICATED', '需要有效的 Agent Token')
         path = self.state / 'tokens' / (digest(token.encode('ascii')) + '.json')
@@ -125,9 +125,13 @@ class AgentService:
         member = self.member(record['username'])
         if not secrets.compare_digest(record['fingerprint'], member['fingerprint']):
             raise ApiError(401, 'UNAUTHENTICATED', '账号密码已变更，请重新签发 Token')
+        return {**record, 'member': member}
+
+    def authenticate(self, token, board, scope):
+        record = self.identity(token)
         if scope not in record['scopes'] or board not in record['boards']:
             raise ApiError(403, 'FORBIDDEN', 'Agent Token 不允许此操作或版块')
-        return {**record, 'member': member}
+        return record
 
     def lock(self, account):
         stream = open(self.locks / (account + '.lock'), 'a')

@@ -12,7 +12,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test server.test.js writes.test.js",
-    "test:live": "node smoke.js"
+    "test": "node --test server.test.js writes.test.js http.test.js",
+    "test:live": "node smoke.js",
+    "start:http": "node http-server.js"
   }
 }

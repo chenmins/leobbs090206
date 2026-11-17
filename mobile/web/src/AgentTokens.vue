@@ -124,7 +124,7 @@ onUnmounted(() => { clearSensitive(); window.removeEventListener('pagehide', cle
                 <td class="agent-status" :class="item.status">{{ labels[item.status] }}</td><td class="agent-action"><button v-if="item.status==='active'" :disabled="busy" @click="revokeTarget=item"><img :src="icons+'m_delete.gif'" alt="">撤销</button><span v-else>—</span></td>
               </tr></tbody>
             </table>
-            <p class="row agent-info">公开帖子搜索和阅读无需 Token。权限变化后，实际发帖仍按论坛规则检查。</p>
+            <p class="row agent-info">公开 API / 本地 stdio 只读无需 Token；远程 HTTP MCP 每次请求均需 Token。实际发帖仍按论坛权限检查。</p>
           </section>
           <section v-if="formOpen && !secret" class="panel">
             <h1 class="bar"><img :src="icons+'edit.gif'" alt="">创建 Agent 授权</h1>

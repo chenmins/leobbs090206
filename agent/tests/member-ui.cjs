@@ -29,7 +29,7 @@ const fs=require('node:fs');
    assert.ok(!copied.includes('leo_'));
    assert.equal(copied,await help.locator('[data-testid="mcp-json"]').textContent());
    if(saveConfig && process.env.LEOBBS_COPIED_CONFIG) fs.writeFileSync(process.env.LEOBBS_COPIED_CONFIG,copied);
-   for(const [button, testId] of [['复制接入说明','mcp-instructions'],['复制 TOML 配置','mcp-toml']]) {
+   for(const [button, testId] of [['复制接入说明','mcp-instructions'],['复制 TOML 配置','mcp-toml'],['复制 HTTP TOML 配置','mcp-http-toml']]) {
     await help.getByRole('button',{name:button,exact:true}).click();
     const text=await page.evaluate(()=>navigator.clipboard.readText());
     assert.equal(text,await help.locator('[data-testid="'+testId+'"]').textContent());

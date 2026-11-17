@@ -10,7 +10,7 @@ async function copy(text, label) {
   manualCopy.value = ''; copyStatus.value = ''
   try {
     await navigator.clipboard.writeText(text)
-    copyStatus.value = `${label}已复制。请替换本地路径占位符。`
+    copyStatus.value = `${label}已复制。请按说明配置客户端。`
   } catch {
     // HTTP LAN sites and denied clipboard permissions still permit manual copy.
     manualCopy.value = text
@@ -25,6 +25,16 @@ async function copy(text, label) {
     <summary class="row">如何接入 MCP</summary>
     <div class="row mcp-help-body">
       <p>当前站点：<strong class="mcp-origin">{{ connection.origin }}</strong></p>
+      <section class="mcp-help-section">
+        <h3>远程接入 · Streamable HTTP</h3>
+        <p>服务地址：<code>{{ connection.httpUrl }}</code>。使用自己的会员 Token 进行 Bearer 鉴权，客户端无需安装 Node.js。暂不支持 OAuth 网页登录。</p>
+        <p>先在本页签发 Token，保存到仅本人可读的本地文件。启动 Codex 前，把文件内容加载到其进程环境变量 <code>LEOBBS_TOKEN</code>；配置只引用变量名，不填真实密钥。撤销或到期后更新变量并重启客户端。</p>
+        <button type="button" @click="copy(connection.httpInstructions, 'HTTP 接入说明')"><img :src="copyIcon" alt="">复制 HTTP 接入说明</button>
+        <button type="button" @click="copy(connection.httpToml, 'HTTP TOML 配置')"><img :src="copyIcon" alt="">复制 HTTP TOML 配置</button>
+        <pre data-testid="mcp-http-toml">{{ connection.httpToml }}</pre>
+        <p>填写到 Codex 的 <code>~/.codex/config.toml</code>。其他客户端使用此 URL 和 Authorization: Bearer 请求头，配置入口及环境变量语法因客户端而异。HTTP 接入每次请求都需 Token，只读测试也一样。</p>
+      </section>
+      <h3>本地接入 · stdio（保留原方式）</h3>
       <p>使用本地 <b>stdio</b>，需要 <b>Node.js 22 或更新版本</b>。先获取<a href="https://github.com/chenmins/leobbs090206" target="_blank" rel="noopener noreferrer">项目代码</a>，在 <code>mcp</code> 目录执行 <code>npm ci</code>，由客户端使用 Node 启动该目录的 <code>server.js</code>。</p>
       <p>不同客户端配置入口可能不同；没有本地 stdio 支持的客户端无法直接套用。下面的绝对路径占位符必须换成你机器上的实际路径。手机可复制说明，交给运行 MCP 的电脑使用。</p>
       <section class="mcp-help-section">

@@ -16,3 +16,24 @@ services:
       - ./persist/cgi-bin:/var/www/html/cgi-bin
       - ./persist/non-cgi:/var/www/html/non-cgi
     restart: unless-stopped
+  mcp:
+    build:
+      context: ./mcp
+      args:
+        LEO_BBS_NODE_IMAGE: ${LEO_BBS_NODE_IMAGE:-node:22-bookworm-slim}
+    entrypoint: ["node", "http-server.js"]
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - LEOBBS_PUBLIC_ORIGIN=${LEOBBS_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
+      - LEOBBS_API_URL=http://leobbs
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

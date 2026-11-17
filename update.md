@@ -1,5 +1,15 @@
 # LeoBBS 更新日志
 
+## 2026-11-17：Streamable HTTP MCP
+
+- 新增站点 `/mcp`，由 Apache 转发至独立 Node 服务，随 Docker Compose 部署；外层 Caddy 继续负责 HTTPS。保留本地 stdio 接入。
+- 每个 HTTP 请求独立校验会员 Bearer Token，复用账号、有效期、撤销和写入权限规则，不共用会员身份；读取仍限游客可见内容。
+- 增加 Host/Origin 校验、请求大小和并发限制，使用官方 SDK 无状态 JSON 响应，不提供 OAuth 或旧版 SSE。
+- 会员授权页新增按当前站点生成的 HTTP 接入说明和可复制 Codex TOML，不包含真实 Token。
+- 增加 HTTP SDK、凭据隔离及隔离 Docker 发帖/回复回归；MCP 17 项、Agent 13 项、配置生成 4 项测试通过，手机和桌面接入说明复制回归通过。
+- MCP 镜像明确设置源码读取权限，避免非 root 服务因构建机文件权限无法启动。已有持久化挂载不覆盖新入口。
+- 部署时设置 `LEOBBS_PUBLIC_ORIGIN` 为实际站点根地址，并重建启动两个 Compose 服务；详见 [部署说明](mcp/README.md) 和 [验证记录](docs/testing/2026-11-17-http-mcp.md)。
+
 ## 2026-11-17：Agent 镜像文件权限修复
 
 - 修复构建时保留源码 600 权限，导致 Apache 无法导入 service.py、授权管理及 Agent 写接口返回 500 HTML 的问题。镜像内程序目录统一为 755、文件为 644，写接口入口为 755；不改变 Token 数据目录权限。

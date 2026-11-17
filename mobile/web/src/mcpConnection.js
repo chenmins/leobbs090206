@@ -1,6 +1,11 @@
 // Shared by mobile/classic member pages. Takes a URL only, never a Token.
 export function buildMcpConnection(siteUrl) {
   const origin = new URL(siteUrl).origin
+  const httpUrl = origin + '/mcp'
+  const httpToml = `[mcp_servers.leobbs]
+url = ${JSON.stringify(httpUrl)}
+bearer_token_env_var = "LEOBBS_TOKEN"`
+  const httpInstructions = `请帮我使用 Streamable HTTP 接入 LeoBBS MCP：${httpUrl}。使用会员 Agent Token 的 Bearer 鉴权，不使用 OAuth 登录。Codex 配置 url 为此地址，bearer_token_env_var 为 LEOBBS_TOKEN；启动 Codex 的进程环境必须设置该变量，可从仅本人可读的本地 Token 文件加载。不要把真实 Token 写入对话、URL、日志或复制配置。无需在客户端安装论坛源码或 Node.js。连接后先调用 list_boards 只读验证；只有我明确授权后才调用 create_topic 或 reply_topic。撤销或到期后重新签发，更新环境变量并重启客户端。写入结果不明先查询，不要换幂等键重复发帖。`
   const serverPath = '/absolute/path/to/leobbs090206/mcp/server.js'
   const tokenPath = '/absolute/private/path/leobbs-token'
   const env = { LEOBBS_URL: origin, LEOBBS_TOKEN_FILE: tokenPath }
@@ -25,5 +30,5 @@ LEOBBS_TOKEN_FILE = ${JSON.stringify(tokenPath)}`
     { title: '2. 在已授权版块发帖', text: '我授权你在我指定且 Token 已允许的版块发布一篇主题。请先确认版块 ID、标题和正文；确定后调用 create_topic({"boardId":实际版块ID,"title":"确认的标题","body":"确认的正文","ubb":true,"icon":"00","idempotencyKey":"本次新生成的UUID"})，并保留返回的 boardId、topicId 和链接。限流按 retryAfterSeconds 等待；写入结果不明时先查询核对，避免重复发布。' },
     { title: '3. 回复刚发布的同一帖', text: '我授权你回复上一步创建的主题。使用刚返回的 boardId、topicId，先调用 get_topic({"boardId":返回的boardId,"topicId":返回的topicId,"page":1}) 确认是同一帖，再调用 reply_topic({"boardId":返回的boardId,"topicId":返回的topicId,"body":"确认的回复内容","ubb":true,"icon":"00","idempotencyKey":"本次回复新生成的UUID"})。不要猜主题 ID。限流按 retryAfterSeconds 等待；结果不明先查原帖，勿换键重复回复。' },
   ]
-  return { origin, json, toml, instructions, examples }
+  return { origin, json, toml, instructions, examples, httpUrl, httpToml, httpInstructions }
 }

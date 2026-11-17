@@ -162,3 +162,65 @@ LEOBBS_URL=http://host.docker.internal:8080 LEOBBS_MCP_DOCKER_IMAGE=leobbs-mcp:l
 只读模式不需要 Token。远程 HTTP MCP、Agent 编辑/删除和私密内容读取尚未实现。
 
 会员可在手机版「个人状态 → Agent 授权」或经典版「控制面板 → Agent 授权」自行获取 Token。创建时选择所需版块及发帖/回复权限，复制只显示一次的密钥到本机私密文件，再配置 `LEOBBS_TOKEN_FILE`。撤销或到期后写入停止，公开搜索与阅读仍可使用。详见 [会员授权说明](../agent/README.md#会员授权管理接口)。
+
+## Streamable HTTP（会员 Bearer Token）
+
+`docker compose up -d --build` 同时启动论坛 Apache 和独立非 root Node 服务。
+入口为站点的 `/mcp`，Apache 在内部转发到 `mcp:3000`；Node 不映射宿主机端口。
+原有 `node server.js` / stdio Docker 启动方式继续有效。
+
+服务器仓库的 `.env` 设置实际对外站点根地址，例如：
+
+```dotenv
+LEOBBS_PUBLIC_ORIGIN=https://your-forum.example
+```
+
+本地默认 `http://127.0.0.1:8080`。必须与客户端访问的主机、端口匹配；不要带路径。
+这是链接和 Host/Origin 校验配置，不在应用内处理 TLS 或推断代理协议。
+外层 Caddy 继续将整站代理到原来的 8080，保留原始 Host 和 Authorization；无需新增公网端口或单独 `/mcp` 路由。代理超时应大于 50 秒。
+新增程序、Apache 配置在镜像内，已有 `persist` 挂载不会覆盖它们。
+更新时需重建并启动**两个服务**，只更新 leobbs 容器不会更新 MCP。
+
+```sh
+docker compose up -d --build
+docker compose ps
+```
+
+会员在「Agent 授权」页签发自己的 Token，选择允许的版块、发帖/回复权限和有效期。
+HTTP 所有请求（包括只读、初始化和工具列表）都需 `Authorization: Bearer <会员 Token>`。
+不接收 URL Token、Cookie 或服务器共享账号。每次请求重新校验有效期、撤销状态及账号密码；写入仍复用版块权限、防灌水和幂等记录。
+读取仍限游客可见内容，不获得私密版块读取权限。Token 未授权的写操作返回工具错误。
+本版不提供 OAuth；只能网页登录授权的客户端暂不可直接使用。
+
+Codex `~/.codex/config.toml`（将地址换成你的站点；与原 stdio 配置二选一）：
+
+```toml
+[mcp_servers.leobbs]
+url = "http://127.0.0.1:8080/mcp"
+bearer_token_env_var = "LEOBBS_TOKEN"
+```
+
+用受限文件加载 Token，再从同一环境启动客户端；不要把 Token 字面量写入 shell 历史：
+
+```sh
+chmod 600 /absolute/private/path/leobbs-token
+export LEOBBS_TOKEN="$(cat /absolute/private/path/leobbs-token)"
+codex
+```
+
+桌面客户端必须能继承该环境变量，或使用其专用的请求头/凭据设置。
+不同客户端没有统一的 HTTP JSON 配置格式，使用其 Streamable HTTP URL 和 Bearer 认证设置。
+会员页可复制按当前站点生成的 Codex 配置与自然语言说明。
+字段依据 [Codex MCP 官方文档](https://developers.openai.com/codex/mcp/)。
+
+连接后先列出工具、调用 `list_boards`。经用户授权后才调用 `create_topic` 和 `reply_topic`。
+同一发布重试保持幂等键和内容不变，结果不明先查原帖。到期/撤销后重新签发并更新客户端环境。
+
+实现遵循 [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)：
+使用官方 SDK、无会话状态，每个请求单独创建 server/transport，返回 JSON；不提供 GET SSE 长连接或 DELETE 会话，返回 405 属正常行为，不代表离线。
+浏览器直接打开 `/mcp` 没有凭据时返回 401 也属正常行为。没有旧版 `/sse` 入口。
+校验 Host/Origin；请求上限 64 KiB、并发上限 64，API 地址固定为部署配置，拒绝跳转。
+内部 `/healthz` 仅用于容器健康检查。
+
+独立运行调试：`LEOBBS_URL` 指对外根地址，`LEOBBS_API_URL` 可指定内部论坛根地址；`HOST` 默认 127.0.0.1，`PORT` 默认 3000。运行 `npm run start:http`。
+测试：`npm test`；仓库根目录运行 `python3 agent/tests/http_integration.py`，需要已构建 Compose 镜像和已初始化的 `persist`，只在临时复制的数据里发帖。

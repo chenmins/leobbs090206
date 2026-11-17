@@ -25,7 +25,7 @@ RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 instal
     && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache CGI and rewrite modules
-RUN a2enmod cgi cgid rewrite headers deflate
+RUN a2enmod cgi cgid rewrite headers deflate proxy proxy_http
 
 # Configure Apache for LeoBBS
 RUN echo '<VirtualHost *:80>\n\
@@ -67,7 +67,7 @@ COPY agent/ /opt/leobbs-agent/
 # Apache runs as www-data: code must be readable, never writable by that user.
 RUN find /opt/leobbs-agent -type d -exec chmod 755 {} + && \
     find /opt/leobbs-agent -type f -exec chmod 644 {} + && \
-    chmod 755 /opt/leobbs-agent/write.cgi
+    chmod 755 /opt/leobbs-agent/write.cgi /opt/leobbs-agent/identity.cgi
 COPY mobile/api/apache.conf /etc/apache2/conf-available/leobbs-mobile.conf
 RUN a2enconf leobbs-mobile
 

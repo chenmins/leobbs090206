@@ -125,3 +125,11 @@ python3 agent/tests/integration.py --image leobbs-agent-test:local
 图标兼容：MCP/HTTP 的 `icon` 保持两位数字（默认 `00`），Agent 在调用经典 CGI 的共享边界转换为 `00.gif` 等完整文件名。主帖写入主题索引及首楼，回复只设置其楼层图标，不替换主帖图标。幂等请求摘要继续使用两位编号，历史成功结果不重写、不批量迁移帖子。
 
 额外回归：`node --test mobile/web/tests/mcpConnection.test.js` 校验站点根地址与配置生成；管理页集成测试复制实际 JSON 并通过 `mcp/smoke-config.js` 启动 stdio MCP，执行只读检查。发帖集成测试在临时数据中验证默认和非默认图标的主帖/回复存储，以及经典版图片 URL 的 HTTP 200 / image/gif。
+
+### HTTP MCP credential check
+
+`GET /api/v1/agent/identity` accepts the same member `Authorization: Bearer` credential as writes.
+Returns only `scopes`, `boards`, `expires`; never returns username, password fingerprint or the credential.
+Missing, expired, revoked or password-invalidated credentials fail authentication; disabled accounts fail authorization.
+Responses are JSON and `Cache-Control: no-store`. The MCP HTTP sidecar calls it on every request and fails closed if unavailable.
+It does not use browser cookies and grants no private content access. See [MCP deployment](../mcp/README.md#streamable-http会员-bearer-token).

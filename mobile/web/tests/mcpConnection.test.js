@@ -27,3 +27,12 @@ for (const [url, origin] of [
   assert.match(info.examples[1].text, /create_topic/)
   assert.match(info.examples[2].text, /reply_topic/)
 })
+test('remote Codex configuration uses current origin and an environment variable only', () => {
+  for (const origin of ['https://leobbs.org','https://forum.example.net','http://127.0.0.1:8080']) {
+    const info=buildMcpConnection(origin+'/m/agent?x=1')
+    assert.equal(info.httpUrl,origin+'/mcp')
+    assert.ok(info.httpToml.includes('url = "'+origin+'/mcp"'))
+    assert.ok(info.httpToml.includes('bearer_token_env_var = "LEOBBS_TOKEN"'))
+    assert.ok(!info.httpToml.includes('leo_'))
+  }
+})
