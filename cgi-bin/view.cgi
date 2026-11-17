@@ -279,7 +279,7 @@ $post =~ s/\[USECHGFONTE\]//isg;
 if ($idmbcodestate eq "on")
 {
 	$rn = 0;
-	&lbcode(\$post);
+	&news_lbcode(\$post);
 	if ($post =~/<blockquote><font face=宋体>代码/isg)
 	{
 		$post =~ s/\&amp\;/\&/ig;
@@ -586,11 +586,16 @@ signal: controller ? controller.signal : undefined
 }).then(function(resp){
 if (timer){clearTimeout(timer);}
 if (!resp.ok){throw new Error("HTTP " + resp.status);}
-return resp.text();
-}).then(function(html){
-html = html.replace(/^[\s\S]*<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
-html = html.replace(/<script[\s\S]*?<\/script>/ig, "");
-if (html.replace(/\s/g, "") == ""){
+return resp.arrayBuffer();
+}).then(function(buffer){
+// The legacy endpoint emits GBK; Response.text() would decode it as UTF-8.
+var html = new TextDecoder("gb18030").decode(buffer);
+// Parse outside the live document. Avoid regex escapes inside Perl's qq template.
+var details = new DOMParser().parseFromString(html, "text/html");
+var scripts = details.querySelectorAll("script");
+for (var i = 0; i < scripts.length; i++){scripts[i].parentNode.removeChild(scripts[i]);}
+html = details.body.innerHTML;
+if (html.trim() == ""){
 html = '<DIV class=ts>没有读取到图片详细信息。</DIV>';
 }
 targetTd.innerHTML = html;
@@ -735,7 +740,7 @@ for ($i = 1; $i < @threads; $i++)
 
 	if ($idmbcodestate eq "on")
 	{
-		&lbcode(\$post);
+		&news_lbcode(\$post);
 		if ($post =~ /<blockquote><font face=宋体>代码/isg)
 		{
 			$post =~ s/\&amp\;/\&/ig;
@@ -796,3 +801,37 @@ if (screen.width != correctwidth || screen.height != correctheight) document.wri
 <center>$adfoot</center>
 </body></html>~;
 exit;
+
+# LEOBBS_NEWS_UBB_COMPAT: normalize editor breaks without enabling arbitrary HTML.
+sub news_lbcode {
+    my $text = shift;
+    unless ($$text =~ /\[DISABLELBCODE\]/i) {
+        my @parts = split(/(\[code(?:=[^\]]*)?\].*?\[\/code\])/is, $$text);
+        for my $part (@parts) {
+            if ($part =~ /\A(\[code(?:=[^\]]*)?\])(.*)(\[\/code\])\z/is) {
+                my ($opening, $literal, $closing) = ($1, $2, $3);
+                # Encode UBB delimiters so the legacy renderer cannot change examples.
+                $literal =~ s/\[/&#91;/g;
+                $literal =~ s/\]/&#93;/g;
+                # Stored real line breaks use HTML br. Other raw HTML is literal code.
+                my @lines = split(/(<br\s*\/?>)/i, $literal);
+                for (my $i = 0; $i < @lines; $i += 2) {
+                    $lines[$i] =~ s/</&lt;/g;
+                    $lines[$i] =~ s/>/&gt;/g;
+                }
+                $part = $opening . join('', @lines) . $closing;
+            } else {
+                $part =~ s/\[br\](?:\[\/br\])?/<br>/ig;
+                $part =~ s{(?:&lt;|<)br\s*/?(?:&gt;|>)}{<br>}ig;
+                $part =~ s{(?:&lt;|<)/p\s*(?:&gt;|>)\s*(?:&lt;|<)p\s*(?:&gt;|>)}{<br><br>}ig;
+                $part =~ s{\A(?:&lt;|<)p\s*(?:&gt;|>)}{}i;
+                $part =~ s{(?:&lt;|<)/p\s*(?:&gt;|>)\z}{}i;
+                $part =~ s{(?:&lt;|<)/?p\s*(?:&gt;|>)}{<br><br>}ig;
+            }
+        }
+        $$text = join('', @parts);
+    }
+    # Keep existing visibility, UBB permission and rendering rules authoritative.
+    &lbcode($text);
+}
+# END_LEOBBS_NEWS_UBB_COMPAT

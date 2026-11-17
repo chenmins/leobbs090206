@@ -19,12 +19,15 @@ def req(payload=None, user='cccc', csrf=None, path='/cgi-bin/agenttokens.cgi', o
 try:
     for part in ['cgi-bin','non-cgi']: shutil.copytree(Path('persist')/part,work/part)
     root=work/'cgi-bin'; shutil.rmtree(root/'data/agent',ignore_errors=True)
+    # Keep classic rendered images on the disposable origin, not the source site.
+    settings=root/'data/boardinfo.cgi'
+    settings.write_bytes(re.sub(rb"\$imagesurl\s*=\s*['\"][^'\"]*['\"]", b"$imagesurl = '/non-cgi'", settings.read_bytes()))
     password='isolated-password-123'; hashed='lEO'+hashlib.md5(password.encode()).hexdigest()
     for user in ['cccc','leoadmin']:
         member=next(p for p in root.glob('members*/*/'+user+'.cgi') if p.parent.name!='old')
         fields=member.read_bytes().split(b'\t'); fields[1]=hashed.encode(); member.write_bytes(b'\t'.join(fields))
     styles=root/'data/styles.cgi'; styles.write_bytes(styles.read_bytes()+b'\n$emailfunctions="off"; 1;\n')
-    docker('run','-d','--name',name,'-p','127.0.0.1::80','-v',str(root)+':/var/www/html/cgi-bin','-v',str(work/'non-cgi')+':/var/www/html/non-cgi','leobbs-agent-test:local')
+    docker('run','-d','--name',name,'-p','127.0.0.1::80','-e','LEOBBS_MOBILE_PUBLIC_BOARDS=1','-v',str(root)+':/var/www/html/cgi-bin','-v',str(work/'non-cgi')+':/var/www/html/non-cgi','leobbs-agent-test:local')
     origin='http://'+docker('port',name,'80/tcp')
     for _ in range(40):
         try:
@@ -63,8 +66,12 @@ try:
     for path in ['/m/agent','/cgi-bin/agentpanel.cgi']:
         status,raw=req(path=path); assert status==200 and b'/m/assets/' in raw,(path,status,raw[:100])
     # Exercise real rendered UI using only the disposable account.
-    environment=dict(os.environ,LEOBBS_TEST_ORIGIN=origin,LEOBBS_TEST_HASH=hashed,LEOBBS_TEST_PASSWORD=password)
+    environment=dict(os.environ,LEOBBS_TEST_ORIGIN=origin,LEOBBS_TEST_HASH=hashed,LEOBBS_TEST_PASSWORD=password, LEOBBS_COPIED_CONFIG=str(work/'copied-mcp.json'))
     subprocess.run([os.environ.get('LEOBBS_TEST_NODE','node'),'agent/tests/member-ui.cjs'],env=environment,check=True)
+    token_file=work/'clipboard-token'; token_file.write_text(issued['token']); token_file.chmod(0o600)
+    environment['LEOBBS_TEST_TOKEN_FILE']=str(token_file)
+    subprocess.run([os.environ.get('LEOBBS_TEST_NODE','node'),'smoke-config.js'],cwd='mcp',env=environment,check=True)
+    token_file.unlink()
     csrf=req()[1]['csrf']; assert req(dict(action='revoke',id=issued['id']),csrf=csrf)[0]==200
     assert req()[1]['items'][0]['status']=='revoked'
     for p in (root/'data/agent').rglob('*'):

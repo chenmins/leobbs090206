@@ -20,6 +20,55 @@
 
 `LEOBBS_URL` 只接受站点根地址，不带账号、路径或查询参数；默认为本机 8080。访问线上站点时配置其实际 HTTPS 根地址，由外层 Caddy 处理 TLS。程序日志不能写入 stdout，stdout 专用于 MCP。
 
+## 会员页面复制接入说明
+
+登录后打开移动版 `/m/agent` 或经典版 `/cgi-bin/agentpanel.cgi` 的「如何接入 MCP」。两个入口共用组件，运行时使用 `window.location.origin` 生成站点根地址，保留当前协议、域名和端口，移除页面路径、查询和片段。支持复制自然语言接入说明、通用 `mcpServers` JSON、Codex TOML 和三条操作指令。JSON 使用 `JSON.stringify` 生成；剪贴板不可用时显示可选中的手动复制文本。
+
+先获取 [项目代码](https://github.com/chenmins/leobbs090206)，安装 Node.js 22 或更新版本，在 `mcp` 目录执行 `npm ci`。客户端以本地 stdio 启动 `node /实际安装位置/mcp/server.js`。不同客户端配置入口和外层格式可能不同；不支持本地 stdio 的客户端不能直接使用下面配置。`args` 和 Token 文件都必须改为实际本地绝对路径，不能保留占位符。
+
+在「创建授权」中选择允许的版块、勾选发布主题/回复主题、设置有效期并确认密码。Token 创建时只显示一次，保存到仅本人可读写的本地文件（macOS/Linux 权限 600，Windows 限制文件 ACL），把路径填入 `LEOBBS_TOKEN_FILE`。接入说明、默认复制内容、日志和页面 URL 不包含真实 Token。撤销或到期后重新签发、更新文件并重启 MCP 进程，因为 Token 在进程启动时读取。只读检查可省略 `LEOBBS_TOKEN_FILE`。
+
+通用 JSON 示例（页面会自动替换站点根地址）：
+
+```json
+{
+  "mcpServers": {
+    "leobbs": {
+      "command": "node",
+      "args": ["/absolute/path/to/leobbs090206/mcp/server.js"],
+      "env": {
+        "LEOBBS_URL": "https://your-forum.example",
+        "LEOBBS_TOKEN_FILE": "/absolute/private/path/leobbs-token"
+      }
+    }
+  }
+}
+```
+
+Codex 使用 `~/.codex/config.toml` 或项目配置中的 `mcp_servers` 表，而不是 JSON 的 `mcpServers`。字段依据 [官方 MCP 文档](https://developers.openai.com/codex/mcp/)（2026-11-17 核对）：
+
+```toml
+[mcp_servers.leobbs]
+command = "node"
+args = ["/absolute/path/to/leobbs090206/mcp/server.js"]
+
+[mcp_servers.leobbs.env]
+LEOBBS_URL = "https://your-forum.example"
+LEOBBS_TOKEN_FILE = "/absolute/private/path/leobbs-token"
+```
+
+可以直接复制给 AI 的接入请求（先替换站点地址）：
+
+> 请接入我的 LeoBBS：站点根地址为 https://your-forum.example。它使用本地 stdio，需要 Node.js 22 或更新版本。先获取 https://github.com/chenmins/leobbs090206 的代码，在 mcp 目录执行 npm ci，再使用 Node 启动该目录的 server.js。请按实际安装位置生成客户端配置，将 LEOBBS_URL 设为上述站点根地址，将 LEOBBS_TOKEN_FILE 设为我保存 Token 的本地绝对路径，不要要求我把密钥发到对话或日志。连接后先列出工具或调用 list_boards 做只读验证，不要自动发布测试帖。
+
+三条操作示例（版块 ID 和内容由用户确认，主题 ID 使用上一步返回值）：
+
+1. **只读检查：**「请列出 LeoBBS MCP 工具，调用 `list_boards({})`，再用 `list_topics({"boardId":实际公开版块ID,"page":1})` 检查论坛连接，本次不要发帖或回复。」
+2. **发帖：**「我授权你在指定且 Token 允许的版块发帖。确认标题和正文后，调用 `create_topic`，参数为 `boardId`、`title`、`body`、`ubb:true`、`icon:"00"` 和本次新生成 UUID 的 `idempotencyKey`，保留返回的 `boardId`、`topicId` 与链接。」
+3. **回复：**「我授权回复刚创建的同一帖。使用返回的 `boardId` 和 `topicId` 调用 `get_topic` 确认，再调用 `reply_topic`，传入这两个 ID、确认的 `body`、`ubb:true`、`icon:"00"` 及回复专用的新 UUID `idempotencyKey`。」
+
+遇到限流，按 `retryAfterSeconds` 等待；明确拒绝的 429 请求可能已记入幂等结果，等待后经确认再用新键提交。写入结果不明时，先通过 `search_topics`、`list_topics` 或 `get_topic` 查询核对，不能自动换键重复发布。
+
 ## Docker 使用
 
 在仓库根目录执行：
@@ -103,6 +152,8 @@ LEOBBS_URL=http://host.docker.internal:8080 LEOBBS_MCP_DOCKER_IMAGE=leobbs-mcp:l
 | --- | --- |
 | `create_topic` | `boardId`、`title`、`body`、`idempotencyKey`，可选 `ubb`、`icon` |
 | `reply_topic` | `boardId`、`topicId`、`body`、`idempotencyKey`，可选 `ubb`、`icon` |
+
+`icon` 在 MCP 与 HTTP API 中始终为两位数字，默认 `"00"`（例如 `"01"`）；不要传 `"00.gif"`。仅 Agent 转交经典 CGI 写入时转换为文件名，主题列表保留主帖图标，回复使用自己的楼层图标。已有幂等结果保持可重放，不批量修复历史主题。
 
 返回主题 ID、楼层、经典版/移动版链接及 `replayed`。支持 UBB；不能提交 GBK 无法保存的 Emoji。工具标注为真实写入、非删除操作，只有用户授权发布后才能调用；服务端仍验证账号权限、Token 范围和版块限制。
 

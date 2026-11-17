@@ -15,6 +15,37 @@ seed_tree_if_missing() {
 seed_tree_if_missing /opt/leobbs-seed/cgi-bin /var/www/html/cgi-bin install.cgi
 seed_tree_if_missing /opt/leobbs-seed/non-cgi /var/www/html/non-cgi index.html
 
+# Upgrade the known news-mode inline-script bug in existing bind mounts.
+# Copy only the response-parsing block, preserving other local CGI changes/GBK.
+python3 - /var/www/html/cgi-bin/view.cgi /opt/leobbs-seed/cgi-bin/view.cgi <<'NEWS_VIEW_PATCH'
+from pathlib import Path
+import sys
+view, seed = map(Path, sys.argv[1:])
+if view.exists():
+    raw = view.read_bytes()
+    broken = br'html = html.replace(/<script[\s\S]*?<\/script>/ig, "");'
+    if broken in raw:
+        start = raw.index(b'return resp.text();')
+        end = raw.index(b'targetTd.innerHTML = html;', start)
+        source = seed.read_bytes().replace(b'\r\n', b'\n')
+        first = source.index(b'return resp.arrayBuffer();')
+        last = source.index(b'targetTd.innerHTML = html;', first)
+        replacement = source[first:last]
+        if b'\r\n' in raw: replacement = replacement.replace(b'\n', b'\r\n')
+        view.write_bytes(raw[:start] + replacement + raw[end:])
+    raw = view.read_bytes()
+    marker = b'# LEOBBS_NEWS_UBB_COMPAT:'
+    if marker not in raw:
+        source = seed.read_bytes().replace(b'\r\n', b'\n')
+        first = source.index(marker)
+        last = source.index(b'# END_LEOBBS_NEWS_UBB_COMPAT', first) + len(b'# END_LEOBBS_NEWS_UBB_COMPAT')
+        helper = source[first:last] + b'\n'
+        if raw.count(br'&lbcode(\$post);') != 2:
+            raise SystemExit('news UBB call anchors changed; refusing partial upgrade')
+        if b'\r\n' in raw: helper = helper.replace(b'\n', b'\r\n')
+        view.write_bytes(raw.replace(br'&lbcode(\$post);', br'&news_lbcode(\$post);') + (b'\r\n' if b'\r\n' in raw else b'\n') + helper)
+NEWS_VIEW_PATCH
+
 # Upgrade the refresh guard in existing installations while preserving local CGI edits.
 perl -pi -e 'if (/if \(\(\(\$currenttime - \$savedtime\)/ && /\$thisprog eq "whosonline\.cgi"/) {
     s/if \(\(\(\$currenttime/if ((\$thisprog eq "post.cgi") \&\& ((\$currenttime/;

@@ -59,6 +59,9 @@ try:
     shutil.copytree(Path(args.source) / 'cgi-bin', work / 'cgi-bin')
     shutil.copytree(Path(args.source) / 'non-cgi', work / 'non-cgi')
     root = work / 'cgi-bin'
+    # Keep classic rendered images on the disposable origin, not the source site.
+    settings=root/'data/boardinfo.cgi'
+    settings.write_bytes(re.sub(rb"\$imagesurl\s*=\s*['\"][^'\"]*['\"]", b"$imagesurl = '/non-cgi'", settings.read_bytes()))
     # Ensure no inherited Agent credentials are copied into the test deployment.
     shutil.rmtree(root / 'data/agent', ignore_errors=True)
     styles = root / 'data/styles.cgi'
@@ -162,8 +165,15 @@ try:
     token_file = work / 'mcp-token'
     token_file.write_text(admin['token'])
     token_file.chmod(0o600)
-    environment = dict(os.environ, LEOBBS_URL=origin, LEOBBS_TOKEN_FILE=str(token_file), LEOBBS_WRITE_TEST='isolated')
+    environment = dict(os.environ, LEOBBS_URL=origin, LEOBBS_TOKEN_FILE=str(token_file), LEOBBS_WRITE_TEST='isolated', LEOBBS_ICON_REPORT=str(work / 'icons.json'))
     subprocess.run([os.environ.get('LEOBBS_TEST_NODE', 'node'), 'smoke-writes.js'], cwd='mcp', env=environment, check=True)
+    for row in json.loads((work / 'icons.json').read_text()):
+        metadata = (root / f"forum1/{row['topicId']}.pl").read_bytes().split(b'\t')
+        posts = (root / f"forum1/{row['topicId']}.thd.cgi").read_bytes().splitlines()
+        assert metadata[10] == (row['icon'] + '.gif').encode()
+        assert len(posts) == 2
+        assert posts[0].split(b'\t')[7] == (row['icon'] + '.gif').encode()
+        assert posts[1].split(b'\t')[7] == (row['replyIcon'] + '.gif').encode()
     token_file.unlink()
     cli('revoke', admin['id'])
     cli('revoke', issued['id'])

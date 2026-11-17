@@ -121,3 +121,7 @@ python3 agent/tests/integration.py --image leobbs-agent-test:local
 页面及管理接口位于 `/cgi-bin` 的入口支持经典版仅限该路径的 Cookie。Docker 启动会更新持久化目录内的两个入口，并幂等加入控制面板菜单。移动页及业务程序位于镜像目录，重新构建即可更新。
 
 新增验证：`python3 agent/tests/management_integration.py` 在现有持久化数据的临时副本中测试 Cookie、CSRF、密码、权限变更、列表隔离、创建/撤销及浏览器布局；不向现有论坛发请求。浏览器脚本需要 playwright-core、Chromium/Edge，可用 `LEOBBS_PLAYWRIGHT`、`LEOBBS_BROWSER`、`LEOBBS_TEST_NODE` 指定位置。
+
+图标兼容：MCP/HTTP 的 `icon` 保持两位数字（默认 `00`），Agent 在调用经典 CGI 的共享边界转换为 `00.gif` 等完整文件名。主帖写入主题索引及首楼，回复只设置其楼层图标，不替换主帖图标。幂等请求摘要继续使用两位编号，历史成功结果不重写、不批量迁移帖子。
+
+额外回归：`node --test mobile/web/tests/mcpConnection.test.js` 校验站点根地址与配置生成；管理页集成测试复制实际 JSON 并通过 `mcp/smoke-config.js` 启动 stdio MCP，执行只读检查。发帖集成测试在临时数据中验证默认和非默认图标的主帖/回复存储，以及经典版图片 URL 的 HTTP 200 / image/gif。

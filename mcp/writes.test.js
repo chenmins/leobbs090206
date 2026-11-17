@@ -44,6 +44,7 @@ test('create sends JSON, token and caller idempotency key, with canonical links'
   assert.equal(requests.at(-1).headers.authorization, `Bearer ${token}`)
   assert.equal(requests.at(-1).headers['idempotency-key'], 'request-123456789')
   assert.equal(requests.at(-1).body.title, '中文')
+  assert.equal(requests.at(-1).body.icon, '00')
   assert.equal(result.structuredContent.url, `${origin}/cgi-bin/topic.cgi?forum=1&topic=2`)
 })
 test('reply returns correct mobile page and does not leak token to read calls', async () => {
@@ -68,5 +69,16 @@ test('malformed write responses retain uncertain-outcome semantics', async () =>
     const result = await call('reply_topic', { boardId: 1, topicId: 2, body, idempotencyKey: 'uncertain-12345678' })
     assert.equal(result.isError, true)
     assert.equal(JSON.parse(result.content[0].text).error.code, 'WRITE_OUTCOME_UNKNOWN')
+  }
+})
+
+test('MCP keeps numeric icon contract for both write tools', async () => {
+  for (const name of ['create_topic', 'reply_topic']) {
+    const args = { boardId: 1, ...(name === 'create_topic' ? {title: 'icon'} : {topicId: 2}), body: 'icon', idempotencyKey: 'icon-contract-12345', icon: '01' }
+    assert.equal((await call(name, args)).isError, undefined)
+    assert.equal(requests.at(-1).body.icon, '01')
+    const before = requests.length
+    assert.equal((await call(name, {...args, icon: '01.gif'})).isError, true)
+    assert.equal(requests.length, before)
   }
 })

@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 const props = defineProps({ classic: Boolean })
 const emit = defineEmits(['login'])
-const origin = location.origin
+import McpConnectionHelp from './McpConnectionHelp.vue'
 const endpoint = '/cgi-bin/agenttokens.cgi'
 const icons = '/non-cgi/images/'
 const data = ref(null), error = ref(''), notice = ref(''), busy = ref(false), loading = ref(true)
@@ -137,10 +137,7 @@ onUnmounted(() => { clearSensitive(); window.removeEventListener('pagehide', cle
               <div class="agent-form-actions"><button :disabled="!scopes.length || !boards.length"><img :src="icons+'yes.gif'" alt="">{{ busy ? '创建中…' : '创建授权' }}</button><button type="button" @click="closeCreate"><img :src="icons+'no.gif'" alt="">取消</button></div>
             </fieldset></form>
           </section>
-          <details class="panel agent-help" :open="helpOpen" @toggle="helpOpen=$event.currentTarget.open"><summary class="row">如何接入 MCP</summary><div class="row"><p>将 Token 原文保存到本机私密文件，在 MCP 配置中指定文件路径：</p><pre>{"env": {
-  "LEOBBS_URL": "{{ origin }}",
-  "LEOBBS_TOKEN_FILE": "/你的私密目录/leobbs-token"
-}}</pre><p>这部分配置不包含 Token 原文。撤销后，AI 将不能继续使用此授权发帖或回复。</p></div></details>
+          <McpConnectionHelp v-model:open="helpOpen" />
         </template>
       </div>
     </div>

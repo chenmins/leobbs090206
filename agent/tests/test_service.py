@@ -83,4 +83,36 @@ class AgentTests(unittest.TestCase):
             self.assertEqual(self.submit()['error']['message'], '灌水预防机制')
             self.assertEqual(writer.call_count, 1)
 
+    def test_legacy_icon_filename_for_topics_and_replies(self):
+        from urllib.parse import parse_qs
+        from types import SimpleNamespace
+        for topic in [None, 2]:
+            for icon in [None, '01']:
+                with self.subTest(topic=topic, icon=icon):
+                    raw = {**self.request, **({'icon': icon} if icon else {})}
+                    if topic is not None: raw.pop('title')
+                    payload = self.api.validate(topic, 'icon-test-12345678', raw)
+                    self.assertEqual(payload['icon'], icon or '00')
+                    with patch.object(service.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout=b'{"status":201}')) as worker:
+                        self.api.run_legacy(self.api.member('alice'), 1, topic, payload, '127.0.0.1')
+                    fields = parse_qs(worker.call_args.kwargs['input'].decode())
+                    self.assertEqual(fields['posticon'], [(icon or '00') + '.gif'])
+        for invalid in ['00.gif', '0', '../01.gif', 1]:
+            with self.assertRaises(service.ApiError): self.submit(payload={**self.request, 'icon': invalid})
+
+    def test_pre_fix_idempotency_record_remains_replayable(self):
+        # Record format/hash before the icon fix: normalized API number, not filename.
+        import hashlib
+        key = 'pre-fix-icon-12345678'
+        member = self.api.member('alice')
+        payload = {**self.request, 'icon': '00'}
+        hash_value = hashlib.sha256(json.dumps([1, None, payload], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        filename = hashlib.sha256((member['account'] + ':' + key).encode()).hexdigest() + '.json'
+        result = {'status': 201, 'data': {'boardId': 1, 'topicId': 22, 'floor': 1}}
+        (self.api.state / 'requests' / filename).write_text(json.dumps({'hash': hash_value, 'state': 'completed', 'result': result}))
+        with patch.object(self.api, 'run_legacy') as worker:
+            self.assertEqual(self.submit(key=key)['data']['topicId'], 22)
+            self.assertTrue(self.submit(key=key, payload=payload)['data']['replayed'])
+            worker.assert_not_called()
+
 if __name__ == '__main__': unittest.main()

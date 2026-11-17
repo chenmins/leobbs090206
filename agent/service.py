@@ -207,8 +207,10 @@ class AgentService:
             return result
 
     def run_legacy(self, member, board, topic, payload, remote_addr):
+        # The public API and idempotency hash retain the two-digit ID. Only the
+        # legacy writer expects a filename, for both topic and reply records.
         fields = {'action': 'addnew' if topic is None else 'addreply', 'forum': str(board),
-                  'inpost': payload['body'], 'posticon': payload['icon'], 'uselbcode': 'yes' if payload['ubb'] else 'no',
+                  'inpost': payload['body'], 'posticon': payload['icon'] + '.gif', 'uselbcode': 'yes' if payload['ubb'] else 'no',
                   'inshowemoticons': 'yes', 'inwater': 'yes'}
         if topic is None: fields['intopictitle'] = payload['title']
         else: fields['topic'] = str(topic)
