@@ -36,6 +36,7 @@ try:
         except (URLError,ConnectionError): pass
         time.sleep(.2)
     assert status==401,(status,data)
+    assert req(path='/api/v1/boards/1/topics', user=None)[0]==405  # imports must work before method rejection
     status,data=req(); assert status==200,(status,data)
     assert any(b['id']==1 for b in data['boards']),data
     csrf=data['csrf']; payload=dict(action='create',name='我的 AI 助手',scopes=['topics:write','replies:write'],boards=[1],days=30,password=password)

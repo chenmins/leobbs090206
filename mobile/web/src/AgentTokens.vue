@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 const props = defineProps({ classic: Boolean })
 const emit = defineEmits(['login'])
 import McpConnectionHelp from './McpConnectionHelp.vue'
+import { readAgentResponse } from './agentResponse.js'
 const endpoint = '/cgi-bin/agenttokens.cgi'
 const icons = '/non-cgi/images/'
 const data = ref(null), error = ref(''), notice = ref(''), busy = ref(false), loading = ref(true)
@@ -33,7 +34,7 @@ const boardText = list => list.map(id => data.value?.boards.find(b => b.id === i
 async function load() {
   try {
     const response = await fetch(endpoint, { credentials: 'same-origin', cache: 'no-store' })
-    const result = await response.json()
+    const result = await readAgentResponse(response)
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) { secret.value = null; password.value = ''; data.value = null; loginRequired.value = true }
       throw new Error(result.error?.message || '暂时无法读取授权')
@@ -51,7 +52,7 @@ function closeCreate() { formOpen.value = false; password.value = ''; error.valu
 async function mutate(payload) {
   const response = await fetch(endpoint, {method:'POST', credentials:'same-origin', cache:'no-store',
     headers:{'Content-Type':'application/json','X-CSRF-Token':data.value.csrf}, body:JSON.stringify(payload)})
-  const result = await response.json()
+  const result = await readAgentResponse(response)
   if (!response.ok) throw new Error(result.error?.message || '操作失败，请刷新列表核查')
   return result
 }
@@ -61,7 +62,7 @@ async function create() {
   try {
     secret.value = await mutate({action:'create', name:name.value, scopes:scopes.value, boards:boards.value, days:days.value, password:password.value})
     formOpen.value = false; name.value = ''; window.scrollTo(0,0)
-  } catch (failure) { error.value = failure.message || '未收到结果，请刷新列表核查。若授权已创建但未取得 Token，请撤销后重新创建。' }
+  } catch (failure) { error.value = (failure.message || '未收到操作结果。') + ' 请先刷新列表核查；若已创建但未取得 Token，请撤销后重新创建。' }
   finally { password.value = ''; busy.value = false; await load() }
 }
 async function revoke() {

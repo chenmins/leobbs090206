@@ -63,7 +63,11 @@ COPY --from=mobile-web /app/dist/ /var/www/html/m/
 COPY --chmod=755 seo/index.cgi /opt/leobbs-seo/index.cgi
 COPY --chmod=755 mobile/api/index.cgi /opt/leobbs-mobile/index.cgi
 COPY agent/ /opt/leobbs-agent/
-RUN chmod 755 /opt/leobbs-agent/write.cgi
+# COPY preserves checkout permissions (including editor-created 0600 files).
+# Apache runs as www-data: code must be readable, never writable by that user.
+RUN find /opt/leobbs-agent -type d -exec chmod 755 {} + && \
+    find /opt/leobbs-agent -type f -exec chmod 644 {} + && \
+    chmod 755 /opt/leobbs-agent/write.cgi
 COPY mobile/api/apache.conf /etc/apache2/conf-available/leobbs-mobile.conf
 RUN a2enconf leobbs-mobile
 
