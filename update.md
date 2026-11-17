@@ -1,5 +1,11 @@
 # LeoBBS 更新日志
 
+## 2026-11-17：LeoBBS 论坛 Skill
+
+- 新增可分发的 `skills/leobbs-forum`，通过现有 MCP 完成查帖、分页阅读、总结及已授权的发帖和回复。
+- 附 HTTP / stdio 接入参考，保留域名和端口，不内嵌 Token；说明安装 Skill 与配置 MCP 是两个步骤。
+- 明确两位数字心情图标、UBB、权限边界、幂等键，以及已记录 429 和写入结果不明的不同处理方式，避免重复发布。
+
 ## 2026-11-17：Streamable HTTP MCP
 
 - 新增站点 `/mcp`，由 Apache 转发至独立 Node 服务，随 Docker Compose 部署；外层 Caddy 继续负责 HTTPS。保留本地 stdio 接入。

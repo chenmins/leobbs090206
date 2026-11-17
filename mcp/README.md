@@ -224,3 +224,20 @@ codex
 
 独立运行调试：`LEOBBS_URL` 指对外根地址，`LEOBBS_API_URL` 可指定内部论坛根地址；`HOST` 默认 127.0.0.1，`PORT` 默认 3000。运行 `npm run start:http`。
 测试：`npm test`；仓库根目录运行 `python3 agent/tests/http_integration.py`，需要已构建 Compose 镜像和已初始化的 `persist`，只在临时复制的数据里发帖。
+
+## 配套 Skill
+
+仓库提供 [leobbs-forum](../skills/leobbs-forum/SKILL.md)，供 AI agent 使用现有 MCP 查找、阅读帖子，以及执行已授权的发帖和回复。
+Skill 不能代替 MCP 连接，也不保存会员 Token。
+
+Codex 可把 `skills/leobbs-forum` 整个目录复制到 `${CODEX_HOME:-$HOME/.codex}/skills/`，保留 `references` 子目录。目录已存在时先检查差异，不盲目覆盖本地修改。重新开启会话后调用：
+
+```text
+$leobbs-forum 搜索论坛里关于 Docker 部署的帖子，汇总并给出来源链接，只读。
+```
+
+```text
+$leobbs-forum 在我授权的版块发布以下已确认的标题和正文，成功后返回主题链接。
+```
+
+其他支持 SKILL.md 的客户端可按自身安装目录导入同一 Skill；MCP 配置仍按客户端要求单独完成。
